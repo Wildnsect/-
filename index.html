@@ -23,7 +23,7 @@
         }
         h2 { margin-top: 0; color: #333; font-size: 22px; }
         
-        /* 📂 드래그 앤 드롭 및 탐색기 겸용 업로드 박스 */
+        /* 📂 엑셀 업로드 박스 */
         .upload-box {
             background: #e8f4fd;
             border: 2px dashed #3498db;
@@ -32,11 +32,6 @@
             margin-bottom: 20px;
             text-align: center;
             cursor: pointer;
-            transition: background 0.2s, border-color 0.2s;
-        }
-        .upload-box.dragover {
-            background: #d4e6fc;
-            border-color: #2980b9;
         }
         .upload-box label {
             color: #2980b9;
@@ -47,12 +42,7 @@
             font-weight: bold;
         }
         .upload-box input {
-            display: none; /* 기본 파일 선택 버튼 숨김 처리 후 박스 전체 클릭/드래그 허용 */
-        }
-        .upload-desc {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
+            font-size: 14px;
         }
 
         /* 입력 영역 반응형 그리드 */
@@ -92,7 +82,7 @@
             border-radius: 6px;
             border: 1px solid #ddd;
             margin-bottom: 20px;
-            max-height: 250px;
+            max-height: 280px;
             overflow-y: auto;
             box-sizing: border-box;
             width: 100%;
@@ -201,11 +191,10 @@
 <div class="container">
     <h2>beetle 🏷️ 사육 데이터 맞춤형 라벨 인쇄기</h2>
     
-    <!-- 📂 드래그 앤 드롭 및 탐색기 겸용 업로드 박스 -->
-    <div class="upload-box" id="dropZone" onclick="document.getElementById('excelFile').click()">
-        <label>📂 사육 데이터 엑셀 파일(.xlsx)을 여기에 마우스로 끌어다 놓으세요 (또는 클릭)</label>
-        <div class="upload-desc">지원 형식: .xlsx, .xls</div>
-        <input type="file" id="excelFile" accept=".xlsx, .xls" onchange="handleFileSelect(event)">
+    <!-- 📂 엑셀 파일 업로드 영역 -->
+    <div class="upload-box">
+        <label for="excelFile">📂 구글 스프레드시트 원본 파일(.xlsx) 업로드하기</label>
+        <input type="file" id="excelFile" accept=".xlsx, .xls" onchange="handleExcelFile(event)">
     </div>
     
     <div class="input-row">
@@ -262,86 +251,91 @@
     let headers = [];
     let dataMap = {};
 
-    const dropZone = document.getElementById("dropZone");
-
-    // 드래그 기본 이벤트 방지
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, preventDefaults, false);
-        document.body.addEventListener(eventName, preventDefaults, false);
-    });
-
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    // 드래그 시각 효과
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
-    });
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
-    });
-
-    // 드래그하여 파일 놓았을 때 처리
-    dropZone.addEventListener('drop', function(e) {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        if (files.length > 0) {
-            processFile(files[0]);
-        }
-    }, false);
-
-    function handleFileSelect(event) {
+    function handleExcelFile(event) {
         const file = event.target.files[0];
-        if (file) {
-            processFile(file);
-        }
-    }
+        if (!file) return;
 
-    function processFile(file) {
         const reader = new FileReader();
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, {type: 'array'});
             
-            const sheetName = workbook.SheetNames[1] || workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            
+            // 데이터가 가장 많은 실제 시트 자동 탐색
+            let targetSheetName = workbook.SheetNames[0];
+            let maxRows = 0;
+
+            workbook.SheetNames.forEach(name => {
+                const sheet = workbook.Sheets[name];
+                const jsonSheet = XLSX.utils.sheet_to_json(sheet, {header: 1});
+                if (jsonSheet.length > maxRows) {
+                    maxRows = jsonSheet.length;
+                    targetSheetName = name;
+                }
+            });
+
+            const worksheet = workbook.Sheets[targetSheetName];
             const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+            
             if (rows.length < 2) {
                 alert("엑셀 파일에 유효한 데이터가 없습니다.");
                 return;
             }
 
-            headers = rows[0];
-            rawSheetData = rows.slice(1);
+            // 💡 병합 셀 및 상단 타이틀 행들을 건너뛰고, '고유 번호' 또는 패턴이 시작되는 진짜 헤더 행과 데이터 행들을 스마트하게 추출
+            let headerRowIdx = 0;
+            for (let i = 0; i < rows.length; i++) {
+                const rowStr = JSON.stringify(rows[i]);
+                if (rowStr.includes("고유 번호") || rowStr.includes("ID") || rowStr.includes("세대")) {
+                    headerRowIdx = i;
+                    break;
+                }
+            }
+
+            headers = rows[headerRowIdx];
+            rawSheetData = rows.slice(headerRowIdx + 1);
             dataMap = {};
 
             const select = document.getElementById("idSelect");
             select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
 
+            // 모든 행을 돌며 A열 또는 B열 등에 있는 고유번호와 전체 열 데이터를 매핑
             rawSheetData.forEach(row => {
-                const idVal = row[1] || row[0]; 
+                // 행 안에서 ID 형태의 값이나 텍스트 탐색 (보통 첫 번째나 두 번째 칸)
+                let idVal = row[1] || row[0]; 
+                if (!idVal) {
+                    // 빈 칸이 있더라도 행 전체에서 ID 패턴 찾기
+                    for (let cell of row) {
+                        if (cell && typeof cell === 'string' && (cell.includes("-WD-") || cell.includes("-WF1-") || cell.includes("-26-"))) {
+                            idVal = cell;
+                            break;
+                        }
+                    }
+                }
+
                 if (idVal) {
                     const idStr = String(idVal).trim();
-                    dataMap[idStr] = row;
+                    if (idStr.length > 3 && !idStr.includes("분석부") && !idStr.includes("평가부")) {
+                        dataMap[idStr] = row;
 
-                    const option = document.createElement("option");
-                    option.value = idStr;
-                    option.text = idStr;
-                    select.appendChild(option);
+                        const option = document.createElement("option");
+                        option.value = idStr;
+                        option.text = idStr;
+                        select.appendChild(option);
+                    }
                 }
             });
 
+            // 체크박스 동적 생성 (전체 열 항목 모두 표시)
             const checkboxContainer = document.getElementById("checkboxContainer");
             checkboxContainer.innerHTML = "";
 
             headers.forEach((header, index) => {
-                if (!header) return;
                 const colLetter = getColumnLetter(index);
-                const cleanHeader = String(header).split('\n')[0];
-                const isDefaultChecked = [0, 1, 2, 4, 5, 6, 7, 31, 32, 41].includes(index);
+                // 헤더 이름이 병합 등으로 비어있을 경우 대체 이름 부여
+                const cleanHeader = header ? String(header).split('\n')[0].trim() : `항목 ${colLetter}`;
+                
+                // 주요 항목들 기본 체크
+                const isDefaultChecked = index < 12 || cleanHeader.includes("체중") || cleanHeader.includes("두폭") || cleanHeader.includes("특이 사항") || cleanHeader.includes("우화일");
 
                 const label = document.createElement("label");
                 label.innerHTML = `<input type="checkbox" id="col_${index}" ${isDefaultChecked ? 'checked' : ''} onchange="updateLabel()"> ${colLetter}열 (${cleanHeader})`;
@@ -379,7 +373,7 @@
             const checkbox = document.getElementById("col_" + index);
             if (checkbox && checkbox.checked) {
                 const colLetter = getColumnLetter(index);
-                const cleanHeader = String(header).split('\n')[0];
+                const cleanHeader = header ? String(header).split('\n')[0].trim() : `항목 ${colLetter}`;
                 const val = rowData[index] !== undefined && rowData[index] !== null && String(rowData[index]).trim() !== "" ? rowData[index] : "-";
 
                 const div = document.createElement("div");
