@@ -23,7 +23,7 @@
         }
         h2 { margin-top: 0; color: #333; font-size: 22px; }
         
-        /* 💡 엑셀 파일 업로드 박스 (눈에 띄게 배치) */
+        /* 💡 엑셀 파일 업로드 박스 */
         .upload-box {
             background: #e8f4fd;
             border: 2px dashed #3498db;
@@ -38,6 +38,7 @@
             cursor: pointer;
             display: block;
             margin-bottom: 5px;
+            font-weight: bold;
         }
         .upload-box input {
             font-size: 14px;
@@ -73,7 +74,7 @@
             box-sizing: border-box;
         }
         
-        /* 개별 열 체크박스 영역 (스크롤 가능) */
+        /* 개별 열 체크박스 영역 */
         .column-selector {
             background: #f8f9fa;
             padding: 15px;
@@ -102,7 +103,7 @@
             width: auto;
         }
 
-        /* 라벨 박스: 내용에 딱 맞춰 가로/세로 폭이 컴팩트하게 자동 조절 */
+        /* 라벨 박스: 내용에 딱 맞춰 컴팩트하게 자동 조절 */
         .label-preview-wrapper {
             text-align: center;
             margin: 20px 0;
@@ -258,7 +259,6 @@
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, {type: 'array'});
             
-            // 실제 데이터가 있는 시트 선택 (첫 번째 시트 또는 두 번째 시트 자동 탐색)
             const sheetName = workbook.SheetNames[1] || workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
             
@@ -275,7 +275,6 @@
             const select = document.getElementById("idSelect");
             select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
 
-            // B열(인덱스 1) 또는 A열(인덱스 0)에서 고유번호 탐색
             rawSheetData.forEach(row => {
                 const idVal = row[1] || row[0]; 
                 if (idVal) {
@@ -289,7 +288,6 @@
                 }
             });
 
-            // 체크박스 동적 생성
             const checkboxContainer = document.getElementById("checkboxContainer");
             checkboxContainer.innerHTML = "";
 
