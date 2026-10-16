@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>왕사슴벌레 사육 데이터 라벨 인쇄기</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            margin: 20px;
+            background-color: #f4f6f9;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 { margin-top: 0; color: #333; }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        select, button {
+            padding: 10px;
+            font-size: 16px;
+        }
+        select {
+            width: 100%;
+            max-width: 400px;
+        }
+        /* 라벨 디자인 영역 */
+        .label-box {
+            width: 420px;
+            height: 240px;
+            border: 2px solid #333;
+            padding: 15px;
+            box-sizing: border-box;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            margin-top: 30px;
+        }
+        .label-header {
+            font-size: 13px;
+            color: #444;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+        }
+        .label-body {
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        .label-body div {
+            margin-bottom: 3px;
+        }
+        .label-footer {
+            text-align: right;
+            font-size: 11px;
+            color: #889;
+        }
+        .print-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .print-btn:hover {
+            background-color: #218838;
+        }
+
+        /* 인쇄 최적화 설정 */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            .label-box, .label-box * {
+                visibility: visible;
+            }
+            .label-box {
+                position: absolute;
+                left: 0;
+                top: 0;
+                border: 2px solid #000;
+            }
+            .print-btn, .input-group, h2 {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>beetle 🏷️ 왕사슴벌레 사육 데이터 라벨 생성기</h2>
+    
+    <div class="input-group">
+        <label for="idSelect">고유 번호(ID) 선택:</label>
+        <select id="idSelect" onchange="updateLabel()">
+            <option value="">-- 고유 번호를 선택하세요 --</option>
+        </select>
+    </div>
+
+    <!-- 라벨 미리보기 및 출력 영역 -->
+    <div class="label-box" id="labelPreview">
+        <div class="label-header">
+            <span id="lblGen">세대: -</span>
+            <span id="lblId">ID: -</span>
+        </div>
+        <div class="label-body">
+            <div><strong>성별:</strong> <span id="lblSex">-</span></div>
+            <div><strong>채집일:</strong> <span id="lblDate">-</span></div>
+            <div><strong>채집지:</strong> <span id="lblLoc">-</span></div>
+            <div><strong>특이사항:</strong> <span id="lblNote">-</span></div>
+        </div>
+        <div class="label-footer">
+            Breeding Data Management Label
+        </div>
+    </div>
+
+    <button class="print-btn" onclick="window.print()">이 라벨 인쇄하기</button>
+</div>
+
+<script>
+    // 공유해주신 왕사슴벌레 사육데이터 기반 데이터셋
+    const excelData = [
+        { id: "A-WD-25-♀-00", gen: "WD", sex: "♀", date: "2025-06-19", loc: "강원도 양양군 서면 서림리", note: "체장 37mm, 두폭 10.7" },
+        { id: "B-WD-25-♀-00", gen: "WD", sex: "♀", date: "2025-06-19", loc: "강원도 양양군 서면 서림리", note: "체장 33mm, 두폭 8.8" },
+        { id: "C-WD-25-♀-00", gen: "WD", sex: "♀", date: "2025-07-01", loc: "경상북도 울진군 매화면 길곡리", note: "체장 35mm, 두폭 9.8" },
+        { id: "D-WD-25-♀-00", gen: "WD", sex: "♀", date: "2025-07-27", loc: "경상남도 산청군 삼장면 유평리", note: "체장 36mm, 두폭 10" },
+        { id: "E-WD-25-♀-00", gen: "WD", sex: "♀", date: "2025-06-22", loc: "강원도 양양군 서면 갈천리", note: "체장 40.8mm, 두폭 11.9" },
+        { id: "F-WD-25-♂-00", gen: "WD", sex: "♂", date: "2025-12-08", loc: "전라남도 장성", note: "체장 58.4mm, 두폭 19.5" },
+        { id: "G-WD-25-♂-00", gen: "WD", sex: "♂", date: "-", loc: "전라남도 장성", note: "데이터 확인중" },
+        { id: "H-WD-25-♀-00", gen: "WD", sex: "♀", date: "2025-12-08", loc: "전라남도 장성", note: "체장 35mm, 두폭 9.7" },
+        { id: "I-WD-25-♀-00", gen: "WD", sex: "♀", date: "2025-11-30", loc: "전라남도 장성", note: "산란전 사망" },
+        { id: "J-WD-25-♀-00", gen: "WD", sex: "♀", date: "2025-11-30", loc: "전라남도 장성", note: "체장 32.8mm, 두폭 9.3" },
+        { id: "K-WD-25-♀-00", gen: "WD", sex: "♀", date: "2025-11-30", loc: "전라남도 장성", note: "체장 30.9mm, 두폭 8.8" },
+        { id: "L-WD-25-♀-00", gen: "WD", sex: "♀", date: "2025-12-08", loc: "전라남도 장성", note: "체장 30.5mm" }
+    ];
+
+    // 페이지 로드 시 드롭다운 목록 생성
+    window.onload = function() {
+        const select = document.getElementById("idSelect");
+        excelData.forEach(item => {
+            const option = document.createElement("option");
+            option.value = item.id;
+            option.text = `${item.id} (${item.loc} / ${item.sex})`;
+            select.appendChild(option);
+        });
+    };
+
+    // 고유번호 선택 시 라벨 내용 자동 갱신
+    function updateLabel() {
+        const selectedId = document.getElementById("idSelect").value;
+        const matchedData = excelData.find(item => item.id === selectedId);
+
+        if (matchedData) {
+            document.getElementById("lblGen").innerText = "세대: " + matchedData.gen;
+            document.getElementById("lblId").innerText = "ID: " + matchedData.id;
+            document.getElementById("lblSex").innerText = matchedData.sex;
+            document.getElementById("lblDate").innerText = matchedData.date;
+            document.getElementById("lblLoc").innerText = matchedData.loc;
+            document.getElementById("lblNote").innerText = matchedData.note;
+        } else {
+            document.getElementById("lblGen").innerText = "세대: -";
+            document.getElementById("lblId").innerText = "ID: -";
+            document.getElementById("lblSex").innerText = "-";
+            document.getElementById("lblDate").innerText = "-";
+            document.getElementById("lblLoc").innerText = "-";
+            document.getElementById("lblNote").innerText = "-";
+        }
+    }
+</script>
+
+</body>
+</html>
