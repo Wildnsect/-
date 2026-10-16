@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>사슴벌레 사육 데이터 맞춤형 라벨 인쇄기</title>
+    <!-- 엑셀 파싱을 위한 SheetJS 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         body {
             font-family: 'Malgun Gothic', sans-serif;
@@ -11,24 +13,51 @@
         }
         .container {
             max-width: 950px;
+            width: 100%;
             margin: 0 auto;
             background: #fff;
-            padding: 30px;
+            padding: 25px;
             border-radius: 8px;
+            box-sizing: border-box;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        h2 { margin-top: 0; color: #333; }
+        h2 { margin-top: 0; color: #333; font-size: 22px; }
+        
+        /* 💡 엑셀 파일 업로드 박스 (눈에 띄게 배치) */
+        .upload-box {
+            background: #e8f4fd;
+            border: 2px dashed #3498db;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .upload-box label {
+            color: #2980b9;
+            font-size: 15px;
+            cursor: pointer;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .upload-box input {
+            font-size: 14px;
+        }
+
+        /* 입력 영역 반응형 그리드 */
         .input-row {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: 1fr 1fr;
             gap: 15px;
             margin-bottom: 20px;
+            width: 100%;
         }
         @media (max-width: 768px) {
             .input-row { grid-template-columns: 1fr; }
         }
         .input-group {
-            margin-bottom: 15px;
+            margin-bottom: 10px;
+            width: 100%;
+            box-sizing: border-box;
         }
         label {
             display: block;
@@ -37,14 +66,14 @@
             color: #444;
             font-size: 13px;
         }
-        select, button {
+        select, button, input[type="file"] {
             padding: 10px;
             font-size: 14px;
             width: 100%;
             box-sizing: border-box;
         }
         
-        /* 개별 열 체크박스 영역 스타일 (스크롤 가능) */
+        /* 개별 열 체크박스 영역 (스크롤 가능) */
         .column-selector {
             background: #f8f9fa;
             padding: 15px;
@@ -53,14 +82,13 @@
             margin-bottom: 20px;
             max-height: 250px;
             overflow-y: auto;
+            box-sizing: border-box;
+            width: 100%;
         }
         .checkbox-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
             gap: 10px;
-        }
-        @media (max-width: 768px) {
-            .checkbox-grid { grid-template-columns: repeat(1, 1fr); }
         }
         .checkbox-grid label {
             font-weight: normal;
@@ -74,47 +102,52 @@
             width: auto;
         }
 
-        /* 라벨 디자인 박스 */
+        /* 라벨 박스: 내용에 딱 맞춰 가로/세로 폭이 컴팩트하게 자동 조절 */
+        .label-preview-wrapper {
+            text-align: center;
+            margin: 20px 0;
+        }
         .label-box {
-            width: 460px;
-            min-height: 340px;
+            display: inline-block;
+            width: max-content;
+            min-width: 260px;
             border: 2px solid #333;
-            padding: 12px;
+            padding: 10px 14px;
             box-sizing: border-box;
             background: #fff;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            margin: 20px auto;
+            text-align: left;
         }
         .label-header {
             font-size: 13px;
             color: #333;
             border-bottom: 1px solid #ddd;
             padding-bottom: 4px;
+            margin-bottom: 6px;
             display: flex;
             justify-content: space-between;
+            align-items: center;
+            gap: 20px;
             font-weight: bold;
+            white-space: nowrap;
         }
         .label-body {
             font-size: 11px;
             line-height: 1.4;
-            flex-grow: 1;
-            padding: 5px 0;
+            padding: 2px 0;
         }
         .label-body div {
-            margin-bottom: 2px;
+            margin-bottom: 3px;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
         .label-footer {
             text-align: right;
-            font-size: 10px;
+            font-size: 9px;
             color: #666;
             border-top: 1px solid #eee;
             padding-top: 3px;
+            margin-top: 6px;
         }
+
         .print-btn {
             background-color: #28a745;
             color: white;
@@ -145,7 +178,7 @@
                 top: 0;
                 border: 2px solid #000;
             }
-            .print-btn, .container > div:not(#labelPreview), h2 {
+            .print-btn, .container > div:not(.label-preview-wrapper), h2, .upload-box {
                 display: none;
             }
         }
@@ -156,12 +189,18 @@
 <div class="container">
     <h2>beetle 🏷️ 사육 데이터 맞춤형 라벨 인쇄기</h2>
     
+    <!-- 📂 실제 사육 데이터 엑셀 파일 업로드 영역 -->
+    <div class="upload-box">
+        <label for="excelFile">📂 구글 스프레드시트 원본 파일(.xlsx) 업로드하기</label>
+        <input type="file" id="excelFile" accept=".xlsx, .xls" onchange="handleExcelFile(event)">
+    </div>
+    
     <div class="input-row">
-        <!-- 1단계: B열 고유번호 선택 -->
+        <!-- 1단계: 고유번호 선택 -->
         <div class="input-group">
-            <label for="idSelect">1단계: B열 고유 번호(ID) 선택</label>
+            <label for="idSelect">1단계: 고유 번호(ID) 선택</label>
             <select id="idSelect" onchange="updateLabel()">
-                <option value="">-- 고유 번호를 선택하세요 --</option>
+                <option value="">-- 먼저 엑셀 파일을 업로드하세요 --</option>
             </select>
         </div>
 
@@ -181,63 +220,24 @@
 
     <div class="column-selector">
         <label>2단계: 라벨에 기입할 개별 열(Column) 항목 선택 (체크박스)</label>
-        <div class="checkbox-grid">
-            <label><input type="checkbox" id="col_A" onchange="updateLabel()"> A열 (라인)</label>
-            <label><input type="checkbox" id="col_B" checked onchange="updateLabel()"> B열 (고유번호)</label>
-            <label><input type="checkbox" id="col_C" checked onchange="updateLabel()"> C열 (부모ID ♂)</label>
-            <label><input type="checkbox" id="col_D" checked onchange="updateLabel()"> D열 (부모ID ♀)</label>
-            <label><input type="checkbox" id="col_E" checked onchange="updateLabel()"> E열 (세대)</label>
-            <label><input type="checkbox" id="col_F" checked onchange="updateLabel()"> F열 (성별)</label>
-            <label><input type="checkbox" id="col_G" checked onchange="updateLabel()"> G열 (산란세팅일)</label>
-            <label><input type="checkbox" id="col_H" checked onchange="updateLabel()"> H열 (산란해체일)</label>
-            <label><input type="checkbox" id="col_I" onchange="updateLabel()"> I열 (푸딩컵 투입일)</label>
-            <label><input type="checkbox" id="col_J" onchange="updateLabel()"> J열 (푸딩컵 용기)</label>
-            <label><input type="checkbox" id="col_K" onchange="updateLabel()"> K열 (1병 투입일)</label>
-            <label><input type="checkbox" id="col_L" onchange="updateLabel()"> L열 (1병 용기)</label>
-            <label><input type="checkbox" id="col_M" onchange="updateLabel()"> M열 (1병 유충단계)</label>
-            <label><input type="checkbox" id="col_N" onchange="updateLabel()"> N열 (2병 투입일)</label>
-            <label><input type="checkbox" id="col_O" onchange="updateLabel()"> O열 (2병 유충무게)</label>
-            <label><input type="checkbox" id="col_P" onchange="updateLabel()"> P열 (2병 용기)</label>
-            <label><input type="checkbox" id="col_Q" onchange="updateLabel()"> Q열 (2병 유충단계)</label>
-            <label><input type="checkbox" id="col_R" onchange="updateLabel()"> R열 (3병 투입일)</label>
-            <label><input type="checkbox" id="col_S" onchange="updateLabel()"> S열 (3병 유충무게)</label>
-            <label><input type="checkbox" id="col_T" onchange="updateLabel()"> T열 (3병 용기)</label>
-            <label><input type="checkbox" id="col_U" onchange="updateLabel()"> U열 (3병 유충단계)</label>
-            <label><input type="checkbox" id="col_V" onchange="updateLabel()"> V열 (4병 투입일)</label>
-            <label><input type="checkbox" id="col_W" onchange="updateLabel()"> W열 (4병 유충무게)</label>
-            <label><input type="checkbox" id="col_X" onchange="updateLabel()"> X열 (4병 용기)</label>
-            <label><input type="checkbox" id="col_Y" onchange="updateLabel()"> Y열 (4병 유충단계)</label>
-            <label><input type="checkbox" id="col_Z" onchange="updateLabel()"> Z열 (5병 투입일)</label>
-            <label><input type="checkbox" id="col_AA" onchange="updateLabel()"> AA열 (5병 유충무게)</label>
-            <label><input type="checkbox" id="col_AB" onchange="updateLabel()"> AB열 (5병 용기)</label>
-            <label><input type="checkbox" id="col_AC" onchange="updateLabel()"> AC열 (5병 유충단계)</label>
-            <label><input type="checkbox" id="col_AD" onchange="updateLabel()"> AD열 (용화일)</label>
-            <label><input type="checkbox" id="col_AE" onchange="updateLabel()"> AE열 (우화일)</label>
-            <label><input type="checkbox" id="col_AF" checked onchange="updateLabel()"> AF열 (유충 최대체중)</label>
-            <label><input type="checkbox" id="col_AG" checked onchange="updateLabel()"> AG열 (유충 두폭)</label>
-            <label><input type="checkbox" id="col_AH" onchange="updateLabel()"> AH열 (턱폭 M)</label>
-            <label><input type="checkbox" id="col_AI" onchange="updateLabel()"> AI열 (체장 L)</label>
-            <label><input type="checkbox" id="col_AJ" onchange="updateLabel()"> AJ열 (두폭 H)</label>
-            <label><input type="checkbox" id="col_AK" onchange="updateLabel()"> AK열 (흉폭 C)</label>
-            <label><input type="checkbox" id="col_AL" onchange="updateLabel()"> AL열 (체고 BD)</label>
-            <label><input type="checkbox" id="col_AO" onchange="updateLabel()"> AO열 (형태 평가)</label>
-            <label><input type="checkbox" id="col_AP" checked onchange="updateLabel()"> AP열 (특이 사항)</label>
-            <label><input type="checkbox" id="col_AQ" onchange="updateLabel()"> AQ열 (근친계수 COI)</label>
-            <label><input type="checkbox" id="col_AS" onchange="updateLabel()"> AS열 (교배 전략)</label>
+        <div class="checkbox-grid" id="checkboxContainer">
+            엑셀 파일을 업로드하면 시트의 모든 열 항목이 자동으로 생성됩니다.
         </div>
     </div>
 
     <!-- 라벨 미리보기 및 출력 영역 -->
-    <div class="label-box" id="labelPreview">
-        <div class="label-header">
-            <span id="lblHeaderLeft">왕사슴벌레</span>
-            <span id="lblHeaderRight">ID: -</span>
-        </div>
-        <div class="label-body" id="labelBodyContent">
-            <!-- 선택한 개별 열들이 이곳에 동적으로 기입됩니다 -->
-        </div>
-        <div class="label-footer">
-            Breeding Data Management Label
+    <div class="label-preview-wrapper">
+        <div class="label-box" id="labelPreview">
+            <div class="label-header">
+                <span id="lblHeaderLeft">왕사슴벌레</span>
+                <span id="lblHeaderRight">ID: -</span>
+            </div>
+            <div class="label-body" id="labelBodyContent">
+                엑셀 파일을 업로드하고 고유번호를 선택해주세요.
+            </div>
+            <div class="label-footer">
+                Breeding Data Management Label
+            </div>
         </div>
     </div>
 
@@ -245,121 +245,115 @@
 </div>
 
 <script>
-    const excelData = {};
+    let rawSheetData = [];
+    let headers = [];
+    let dataMap = {};
 
-    const rawIds = [
-        "A-WF1-25-♀-01", "A-WF1-25-♀-02", "A-WF1-25-♀-03",
-        "B-WF1-25-♀-01", "B-WF1-25-♀-02", "B-WF1-25-♀-03", "B-WF1-25-♀-04", "B-WF1-25-♂-05", "B-WF1-25-♀-06", "B-WF1-25-♀-07", "B-WF1-25-♀-08", "B-WF1-25-♀-09", "B-WF1-25-♀-10", "B-WF1-25-♂-11", "B-WF1-25-♀-12", "B-WF1-25-♂-13",
-        "C-WF1-25-♂-01", "C-WF1-25-♂-02", "C-WF1-25-♂-03", "C-WF1-25-♂-04", "C-WF1-25-♀-05", "C-WF1-25-♀-06", "C-WF1-25-♂-05", "C-WF1-25-♀-08", "C-WF1-25-♂-09", "C-WF1-25-♀-10", "C-WF1-25-♂-11", "C-WF1-25-♂-12", "C-WF1-25-♀-13", "C-WF1-25-♀-14",
-        "D-WF1-25-♂-01", "D-WF1-25-♂-02", "D-WF1-25-♀-03", "D-WF1-25-♂-04", "D-WF1-25-♂-05", "D-WF1-25-♀-06", "D-WF1-25-♂-07", "D-WF1-25-♂-08", "D-WF1-25-♂-09", "D-WF1-25-♀-10", "D-WF1-25-♀-11", "D-WF1-25-♂-12", "D-WF1-25-♀-13", "D-WF1-25-♂-14", "D-WF1-25-♀-15", "D-WF1-25-♂-16", "D-WF1-25-♂-17", "D-WF1-25-♂-18",
-        "E-WF1-25-♂-01", "E-WF1-25-♂-02", "E-WF1-25-♂-03", "E-WF1-25-♂-04", "E-WF1-25-♀-05",
-        "FH-WF1-26-♀-01", "FH-WF1-26-♂-02", "FH-WF1-26-1-03", "FH-WF1-26-2-04", "FH-WF1-26-♂-05", "FH-WF1-26-2-06", "FH-WF1-26-1-07", "FH-WF1-26-1-08", "FH-WF1-26-2-09", "FH-WF1-26-1-10", "FH-WF1-26-1-11", "FH-WF1-26-♀-12", "FH-WF1-26-♀-13", "FH-WF1-26-♂-14", "FH-WF1-26-1-15", "FH-WF1-26-1-16", "FH-WF1-26-♂-17", "FH-WF1-26-2-18", "FH-WF1-26-2-19", "FH-WF1-26-별-20", "FH-WF1-26-2-21", "FH-WF1-26-♀-22", "FH-WF1-26-♂-23", "FH-WF1-26-2-24", "FH-WF1-26-♂-25",
-        "FJ-WF1-26-2-01", "FJ-WF1-26-♀-02", "FJ-WF1-26-1-03", "FJ-WF1-26-1-04", "FJ-WF1-26-♂-05", "FJ-WF1-26-♀-06", "FJ-WF1-26-♀-07", "FJ-WF1-26-1-08", "FJ-WF1-26-1-09", "FJ-WF1-26-♀-10", "FJ-WF1-26--11", "FJ-WF1-26-2-12", "FJ-WF1-26-2-13", "FJ-WF1-26-1-14", "FJ-WF1-26-1-15", "FJ-WF1-26-1-16",
-        "GK-WF1-26-♂-01", "GK-WF1-26-♀-02", "GK-WF1-26-♂-03", "GK-WF1-26--04", "GK-WF1-26-♂-05", "GK-WF1-26-♂-06", "GK-WF1-26-♂-07", "GK-WF1-26-1-08", "GK-WF1-26-♂-09", "GK-WF1-26-♀-10", "GK-WF1-26-♂-11", "GK-WF1-26-♀-12", "GK-WF1-26-♀-13", "GK-WF1-26-♀-14", "GK-WF1-26-2-15", "GK-WF1-26-♂-16", "GK-WF1-26-♀-17", "GK-WF1-26-1-18",
-        "GL-WF1-26-♀-01", "GL-WF1-26-♀-02", "GL-WF1-26-♀-03", "GL-WF1-26-♀-04", "GL-WF1-26-♀-05", "GL-WF1-26-2-06", "GL-WF1-26-♂-07", "GL-WF1-26-2-08", "GL-WF1-26-♂-09", "GL-WF1-26-♂-10", "GL-WF1-26-♂-11", "GL-WF1-26-♂-12", "GL-WF1-26-2-13", "GL-WF1-26-1-14", "GL-WF1-26-♀-15", "GL-WF1-26-1-16"
-    ];
+    function handleExcelFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
 
-    rawIds.forEach(id => {
-        const parts = id.split('-');
-        const line = parts[0] || "-";
-        const sex = id.includes("♀") ? "♀" : (id.includes("♂") ? "♂" : "-");
-        
-        excelData[id] = {
-            A: line,
-            B: id,
-            C: "-",
-            D: line + "-WD-25-" + sex + "-00",
-            E: "WF1",
-            F: sex,
-            G: "2025-06-22",
-            H: "2025-08-20",
-            I: "2025-07-01", J: "푸딩컵(소)", K: "2025-08-20", L: "BSK 1100", M: "1령",
-            N: "2025-12-18", O: "8.5g", P: "BSK 800", Q: "2령",
-            R: "-", S: "-", T: "-", U: "-",
-            V: "-", W: "-", X: "-", Y: "-",
-            Z: "-", AA: "-", AB: "-", AC: "-",
-            AD: "-", AE: "-",
-            AF: "8.5g", AG: "9.2mm", AH: "-", AI: "-", AJ: "-", AK: "-", AL: "-",
-            AO: "A등급", AP: "특이사항 없음", AQ: "0.0%", AS: "In-Cross"
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            
+            // 실제 데이터가 있는 시트 선택 (첫 번째 시트 또는 두 번째 시트 자동 탐색)
+            const sheetName = workbook.SheetNames[1] || workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            
+            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+            if (rows.length < 2) {
+                alert("엑셀 파일에 유효한 데이터가 없습니다.");
+                return;
+            }
+
+            headers = rows[0];
+            rawSheetData = rows.slice(1);
+            dataMap = {};
+
+            const select = document.getElementById("idSelect");
+            select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
+
+            // B열(인덱스 1) 또는 A열(인덱스 0)에서 고유번호 탐색
+            rawSheetData.forEach(row => {
+                const idVal = row[1] || row[0]; 
+                if (idVal) {
+                    const idStr = String(idVal).trim();
+                    dataMap[idStr] = row;
+
+                    const option = document.createElement("option");
+                    option.value = idStr;
+                    option.text = idStr;
+                    select.appendChild(option);
+                }
+            });
+
+            // 체크박스 동적 생성
+            const checkboxContainer = document.getElementById("checkboxContainer");
+            checkboxContainer.innerHTML = "";
+
+            headers.forEach((header, index) => {
+                if (!header) return;
+                const colLetter = getColumnLetter(index);
+                const cleanHeader = String(header).split('\n')[0];
+                const isDefaultChecked = [0, 1, 2, 4, 5, 6, 7, 31, 32, 41].includes(index);
+
+                const label = document.createElement("label");
+                label.innerHTML = `<input type="checkbox" id="col_${index}" ${isDefaultChecked ? 'checked' : ''} onchange="updateLabel()"> ${colLetter}열 (${cleanHeader})`;
+                checkboxContainer.appendChild(label);
+            });
+
+            alert(`데이터 연동 성공! 총 ${Object.keys(dataMap).length}개의 고유번호가 로드되었습니다.`);
+            
+            if (select.options.length > 1) {
+                select.selectedIndex = 1;
+                updateLabel();
+            }
         };
-    });
-
-    window.onload = function() {
-        const select = document.getElementById("idSelect");
-        rawIds.forEach(idStr => {
-            const option = document.createElement("option");
-            option.value = idStr;
-            option.text = idStr;
-            select.appendChild(option);
-        });
-        updateLabel();
-    };
+        reader.readAsArrayBuffer(file);
+    }
 
     function updateLabel() {
         const selectedId = document.getElementById("idSelect").value;
         const selectedSpecies = document.getElementById("speciesSelect").value;
-        
-        const data = excelData[selectedId] || { A: "-", B: selectedId || "-", C: "-", D: "-", E: "WF1", F: "-", G: "-", H: "-", I: "-", J: "-", K: "-", L: "-", M: "-", N: "-", O: "-", P: "-", Q: "-", R: "-", S: "-", T: "-", U: "-", V: "-", W: "-", X: "-", Y: "-", Z: "-", AA: "-", AB: "-", AC: "-", AD: "-", AE: "-", AF: "-", AG: "-", AH: "-", AI: "-", AJ: "-", AK: "-", AL: "-", AO: "-", AP: "-", AQ: "-", AS: "-" };
-
-        document.getElementById("lblHeaderLeft").innerText = selectedSpecies;
-        document.getElementById("lblHeaderRight").innerText = "ID: " + (data.B || "-");
-
         const bodyContainer = document.getElementById("labelBodyContent");
         bodyContainer.innerHTML = "";
 
-        const columns = [
-            { id: "col_A", label: "A열(라인)", val: data.A },
-            { id: "col_B", label: "B열(고유번호)", val: data.B },
-            { id: "col_C", label: "C열(부모ID ♂)", val: data.C },
-            { id: "col_D", label: "D열(부모ID ♀)", val: data.D },
-            { id: "col_E", label: "E열(세대)", val: data.E },
-            { id: "col_F", label: "F열(성별)", val: data.F },
-            { id: "col_G", label: "G열(산란세팅일)", val: data.G },
-            { id: "col_H", label: "H열(산란해체일)", val: data.H },
-            { id: "col_I", label: "I열(푸딩투입)", val: data.I },
-            { id: "col_J", label: "J열(푸딩용기)", val: data.J },
-            { id: "col_K", label: "K열(1병투입)", val: data.K },
-            { id: "col_L", label: "L열(1병용기)", val: data.L },
-            { id: "col_M", label: "M열(1병단계)", val: data.M },
-            { id: "col_N", label: "N열(2병투입)", val: data.N },
-            { id: "col_O", label: "O열(2병무게)", val: data.O },
-            { id: "col_P", label: "P열(2병용기)", val: data.P },
-            { id: "col_Q", label: "Q열(2병단계)", val: data.Q },
-            { id: "col_R", label: "R열(3병투입)", val: data.R },
-            { id: "col_S", label: "S열(3병무게)", val: data.S },
-            { id: "col_T", label: "T열(3병용기)", val: data.T },
-            { id: "col_U", label: "U열(3병단계)", val: data.U },
-            { id: "col_V", label: "V열(4병투입)", val: data.V },
-            { id: "col_W", label: "W열(4병무게)", val: data.W },
-            { id: "col_X", label: "X열(4병용기)", val: data.X },
-            { id: "col_Y", label: "Y열(4병단계)", val: data.Y },
-            { id: "col_Z", label: "Z열(5병투입)", val: data.Z },
-            { id: "col_AA", label: "AA열(5병무게)", val: data.AA },
-            { id: "col_AB", label: "AB열(5병용기)", val: data.AB },
-            { id: "col_AC", label: "AC열(5병단계)", val: data.AC },
-            { id: "col_AD", label: "AD열(용화일)", val: data.AD },
-            { id: "col_AE", label: "AE열(우화일)", val: data.AE },
-            { id: "col_AF", label: "AF열(최대체중)", val: data.AF },
-            { id: "col_AG", label: "AG열(유충두폭)", val: data.AG },
-            { id: "col_AH", label: "AH열(턱폭 M)", val: data.AH },
-            { id: "col_AI", label: "AI열(체장 L)", val: data.AI },
-            { id: "col_AJ", label: "AJ열(두폭 H)", val: data.AJ },
-            { id: "col_AK", label: "AK열(흉폭 C)", val: data.AK },
-            { id: "col_AL", label: "AL열(체고 BD)", val: data.AL },
-            { id: "col_AO", label: "AO열(형태평가)", val: data.AO },
-            { id: "col_AP", label: "AP열(특이사항)", val: data.AP },
-            { id: "col_AQ", label: "AQ열(근친계수)", val: data.AQ },
-            { id: "col_AS", label: "AS열(교배전략)", val: data.AS }
-        ];
+        if (!selectedId || !dataMap[selectedId]) {
+            document.getElementById("lblHeaderRight").innerText = "ID: -";
+            bodyContainer.innerHTML = "고유번호를 선택해주세요.";
+            return;
+        }
 
-        columns.forEach(col => {
-            const checkbox = document.getElementById(col.id);
+        const rowData = dataMap[selectedId];
+
+        document.getElementById("lblHeaderLeft").innerText = selectedSpecies;
+        document.getElementById("lblHeaderRight").innerText = "ID: " + selectedId;
+
+        headers.forEach((header, index) => {
+            const checkbox = document.getElementById("col_" + index);
             if (checkbox && checkbox.checked) {
+                const colLetter = getColumnLetter(index);
+                const cleanHeader = String(header).split('\n')[0];
+                const val = rowData[index] !== undefined && rowData[index] !== null && String(rowData[index]).trim() !== "" ? rowData[index] : "-";
+
                 const div = document.createElement("div");
-                div.innerHTML = `<strong>${col.label}:</strong> ${col.val}`;
+                div.innerHTML = `<strong>${colLetter}열 (${cleanHeader}):</strong> ${val}`;
                 bodyContainer.appendChild(div);
             }
         });
+    }
+
+    function getColumnLetter(index) {
+        let temp, letter = '';
+        index++;
+        while (index > 0) {
+            temp = (index - 1) % 26;
+            letter = String.fromCharCode(temp + 65) + letter;
+            index = (index - temp - 1) / 26;
+        }
+        return letter;
     }
 </script>
 
