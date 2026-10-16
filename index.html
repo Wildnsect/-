@@ -23,14 +23,20 @@
         }
         h2 { margin-top: 0; color: #333; font-size: 22px; }
         
-        /* 💡 엑셀 파일 업로드 박스 */
+        /* 📂 드래그 앤 드롭 및 탐색기 겸용 업로드 박스 */
         .upload-box {
             background: #e8f4fd;
             border: 2px dashed #3498db;
-            padding: 15px;
+            padding: 20px;
             border-radius: 6px;
             margin-bottom: 20px;
             text-align: center;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .upload-box.dragover {
+            background: #d4e6fc;
+            border-color: #2980b9;
         }
         .upload-box label {
             color: #2980b9;
@@ -41,7 +47,12 @@
             font-weight: bold;
         }
         .upload-box input {
-            font-size: 14px;
+            display: none; /* 기본 파일 선택 버튼 숨김 처리 후 박스 전체 클릭/드래그 허용 */
+        }
+        .upload-desc {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
         }
 
         /* 입력 영역 반응형 그리드 */
@@ -67,7 +78,7 @@
             color: #444;
             font-size: 13px;
         }
-        select, button, input[type="file"] {
+        select, button {
             padding: 10px;
             font-size: 14px;
             width: 100%;
@@ -190,10 +201,11 @@
 <div class="container">
     <h2>beetle 🏷️ 사육 데이터 맞춤형 라벨 인쇄기</h2>
     
-    <!-- 📂 실제 사육 데이터 엑셀 파일 업로드 영역 -->
-    <div class="upload-box">
-        <label for="excelFile">📂 구글 스프레드시트 원본 파일(.xlsx) 업로드하기</label>
-        <input type="file" id="excelFile" accept=".xlsx, .xls" onchange="handleExcelFile(event)">
+    <!-- 📂 드래그 앤 드롭 및 탐색기 겸용 업로드 박스 -->
+    <div class="upload-box" id="dropZone" onclick="document.getElementById('excelFile').click()">
+        <label>📂 사육 데이터 엑셀 파일(.xlsx)을 여기에 마우스로 끌어다 놓으세요 (또는 클릭)</label>
+        <div class="upload-desc">지원 형식: .xlsx, .xls</div>
+        <input type="file" id="excelFile" accept=".xlsx, .xls" onchange="handleFileSelect(event)">
     </div>
     
     <div class="input-row">
@@ -250,10 +262,44 @@
     let headers = [];
     let dataMap = {};
 
-    function handleExcelFile(event) {
-        const file = event.target.files[0];
-        if (!file) return;
+    const dropZone = document.getElementById("dropZone");
 
+    // 드래그 기본 이벤트 방지
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // 드래그 시각 효과
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+    });
+
+    // 드래그하여 파일 놓았을 때 처리
+    dropZone.addEventListener('drop', function(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+            processFile(files[0]);
+        }
+    }, false);
+
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+            processFile(file);
+        }
+    }
+
+    function processFile(file) {
         const reader = new FileReader();
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
