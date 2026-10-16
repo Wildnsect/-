@@ -258,10 +258,9 @@
         const reader = new FileReader();
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
-            // raw: false 옵션으로 서식 그대로 읽기
-            const workbook = XLSX.read(data, {type: 'array', raw: false});
+            // cellDates: true를 주어 엑셀 날짜를 JS Date 객체로 정확히 파싱합니다.
+            const workbook = XLSX.read(data, {type: 'array', cellDates: true});
             
-            // 💡 무조건 이름이 'WF1'인 시트를 강제로 탐색
             let targetSheetName = null;
             workbook.SheetNames.forEach(name => {
                 if (name.trim().toUpperCase() === "WF1") {
@@ -275,14 +274,14 @@
             }
 
             const worksheet = workbook.Sheets[targetSheetName];
-            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: "", raw: false});
+            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: ""});
             
             if (rows.length < 3) {
                 alert("WF1 시트에 데이터가 부족합니다.");
                 return;
             }
 
-            // 💡 무조건 3번째 행(인덱스 2)을 헤더(열 제목)로 지정
+            // 💡 3번째 행(인덱스 2)을 헤더로 지정
             const headerRowIdx = 2; 
             headers = rows[headerRowIdx];
             rawSheetData = rows.slice(headerRowIdx + 1);
@@ -291,12 +290,11 @@
             const select = document.getElementById("idSelect");
             select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
 
-            // 💡 B열(인덱스 1)의 값만 엄격하게 고유번호로 추출
+            // B열(인덱스 1) 고유번호 추출
             rawSheetData.forEach(row => {
-                const idVal = row[1]; // B열 고유번호
+                const idVal = row[1]; // B열
                 if (idVal) {
                     const idStr = String(idVal).trim();
-                    // 빈 값이거나 헤더 내용이 아닌 경우에만 등록
                     if (idStr.length > 2 && !idStr.includes("고유 번호")) {
                         dataMap[idStr] = row;
 
@@ -308,7 +306,6 @@
                 }
             });
 
-            // 체크박스 동적 생성 (3행 헤더 기준 모든 열 항목 표시)
             const checkboxContainer = document.getElementById("checkboxContainer");
             checkboxContainer.innerHTML = "";
 
@@ -316,7 +313,6 @@
                 const colLetter = getColumnLetter(index);
                 const cleanHeader = header ? String(header).split('\n')[0].trim() : `항목 ${colLetter}`;
                 
-                // 주요 항목들 기본 체크
                 const isDefaultChecked = index < 12 || cleanHeader.includes("체중") || cleanHeader.includes("두폭") || cleanHeader.includes("특이 사항") || cleanHeader.includes("우화일");
 
                 const label = document.createElement("label");
@@ -324,7 +320,7 @@
                 checkboxContainer.appendChild(label);
             });
 
-            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 개체 ID가 B열에서 로드되었습니다.`);
+            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 개체 ID가 로드되었습니다.`);
             
             if (select.options.length > 1) {
                 select.selectedIndex = 1;
@@ -332,6 +328,40 @@
             }
         };
         reader.readAsArrayBuffer(file);
+    }
+
+    // 💡 날짜 객체나 시리얼 번호를 깔끔한 YYYY-MM-DD 문자열로 변환하는 정밀 포맷터
+    function parseDateValue(val) {
+        if (!val) return "-";
+        
+        // 1. 이미 자바스크립트 Date 객체인 경우
+        if (val instanceof Date && !isNaN(val)) {
+            const y = val.getFullYear();
+            const m = String(val.getMonth() + 1).padStart(2, '0');
+            const d = String(val.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // 2. 만약 숫자로 들어온 엑셀 시리얼 넘버인 경우
+        let num = Number(val);
+        if (!isNaN(num) && num > 30000 && num < 60000) {
+            const utcDays = Math.floor(num - 25569);
+            const utcValue = utcDays * 86400;
+            const dateInfo = new Date(utcValue * 1000);
+            const y = dateInfo.getUTCFullYear();
+            const m = String(dateInfo.getUTCMonth() + 1).padStart(2, '0');
+            const d = String(dateInfo.getUTCDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // 3. 이미 YYYY-MM-DD 형식의 문자열이거나 기타 텍스트인 경우 앞부분만 깔끔하게 추출
+        let strVal = String(val).trim();
+        if (strVal.includes("T")) {
+            strVal = strVal.split("T")[0];
+        } else if (strVal.includes(" ")) {
+            strVal = strVal.split(" ")[0];
+        }
+        return strVal;
     }
 
     function updateLabel() {
@@ -358,8 +388,15 @@
                 const cleanHeader = header ? String(header).split('\n')[0].trim() : `항목 ${colLetter}`;
                 const rawVal = rowData[index];
 
-                // 날짜나 일반 텍스트를 원본 그대로 깔끔하게 출력
-                let val = (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== "") ? String(rawVal).split(' ')[0] : "-";
+                let val = "-";
+                if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== "") {
+                    // 💡 헤더 이름에 '일' 또는 '일자'가 포함되어 있거나 값이 날짜 형태인 경우 날짜 포맷터 적용
+                    if (cleanHeader.includes("일") || cleanHeader.includes("일자") || rawVal instanceof Date || (typeof rawVal === 'number' && rawVal > 30000)) {
+                        val = parseDateValue(rawVal);
+                    } else {
+                        val = String(rawVal).trim();
+                    }
+                }
 
                 const div = document.createElement("div");
                 div.innerHTML = `<strong>${colLetter}열 (${cleanHeader}):</strong> ${val}`;
