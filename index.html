@@ -258,9 +258,10 @@
         const reader = new FileReader();
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, {type: 'array'});
+            // raw: false 옵션으로 서식 그대로 읽기
+            const workbook = XLSX.read(data, {type: 'array', raw: false});
             
-            // 💡 핵심 수정: 파일 내 시트 중 이름이 정확히 'WF1'인 시트를 강제로 탐색
+            // 💡 무조건 이름이 'WF1'인 시트를 강제로 탐색
             let targetSheetName = null;
             workbook.SheetNames.forEach(name => {
                 if (name.trim().toUpperCase() === "WF1") {
@@ -268,35 +269,35 @@
                 }
             });
 
-            // 만약 정확한 'WF1' 시트가 없다면 두 번째 시트 선택, 그조차 없으면 첫 번째 시트 선택
             if (!targetSheetName) {
-                targetSheetName = workbook.SheetNames[1] || workbook.SheetNames[0];
-            }
-
-            const worksheet = workbook.Sheets[targetSheetName];
-            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
-            
-            if (rows.length < 3) {
-                alert(`[${targetSheetName}] 시트에 데이터가 부족합니다.`);
+                alert("엑셀 파일에 'WF1' 시트가 존재하지 않습니다.");
                 return;
             }
 
-            // 💡 핵심 수정: 무조건 3번째 행(인덱스 2)을 헤더(열 제목)로 지정
+            const worksheet = workbook.Sheets[targetSheetName];
+            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: "", raw: false});
+            
+            if (rows.length < 3) {
+                alert("WF1 시트에 데이터가 부족합니다.");
+                return;
+            }
+
+            // 💡 무조건 3번째 행(인덱스 2)을 헤더(열 제목)로 지정
             const headerRowIdx = 2; 
-            headers = rows[headerRowIdx] || rows[0];
+            headers = rows[headerRowIdx];
             rawSheetData = rows.slice(headerRowIdx + 1);
             dataMap = {};
 
             const select = document.getElementById("idSelect");
             select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
 
-            // 💡 핵심 수정: B열(인덱스 1)의 값만 고유번호로 추출 (설명글이나 빈 값 철저히 배제)
+            // 💡 B열(인덱스 1)의 값만 엄격하게 고유번호로 추출
             rawSheetData.forEach(row => {
                 const idVal = row[1]; // B열 고유번호
                 if (idVal) {
                     const idStr = String(idVal).trim();
-                    // 사슴벌레 개체 ID 형식(예: A-WF1-25-01 등 대시(-)가 포함된 유효한 ID)만 필터링
-                    if (idStr.length > 3 && (idStr.includes("-WF1-") || idStr.includes("WF1") || idStr.includes("-"))) {
+                    // 빈 값이거나 헤더 내용이 아닌 경우에만 등록
+                    if (idStr.length > 2 && !idStr.includes("고유 번호")) {
                         dataMap[idStr] = row;
 
                         const option = document.createElement("option");
@@ -307,7 +308,7 @@
                 }
             });
 
-            // 체크박스 동적 생성 (WF1 시트 3행 헤더 기준 모든 열 항목 표시)
+            // 체크박스 동적 생성 (3행 헤더 기준 모든 열 항목 표시)
             const checkboxContainer = document.getElementById("checkboxContainer");
             checkboxContainer.innerHTML = "";
 
@@ -323,7 +324,7 @@
                 checkboxContainer.appendChild(label);
             });
 
-            alert(`[${targetSheetName}] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 실제 고유번호가 B열에서 로드되었습니다.`);
+            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 개체 ID가 B열에서 로드되었습니다.`);
             
             if (select.options.length > 1) {
                 select.selectedIndex = 1;
@@ -355,7 +356,10 @@
             if (checkbox && checkbox.checked) {
                 const colLetter = getColumnLetter(index);
                 const cleanHeader = header ? String(header).split('\n')[0].trim() : `항목 ${colLetter}`;
-                const val = rowData[index] !== undefined && rowData[index] !== null && String(rowData[index]).trim() !== "" ? rowData[index] : "-";
+                const rawVal = rowData[index];
+
+                // 날짜나 일반 텍스트를 원본 그대로 깔끔하게 출력
+                let val = (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== "") ? String(rawVal).split(' ')[0] : "-";
 
                 const div = document.createElement("div");
                 div.innerHTML = `<strong>${colLetter}열 (${cleanHeader}):</strong> ${val}`;
