@@ -198,9 +198,9 @@
     </div>
     
     <div class="input-row">
-        <!-- 1단계: 고유번호 선택 -->
+        <!-- 1단계: B열 고유번호 선택 -->
         <div class="input-group">
-            <label for="idSelect">1단계: 고유 번호(ID) 선택</label>
+            <label for="idSelect">1단계: B열 고유 번호(ID) 선택</label>
             <select id="idSelect" onchange="updateLabel()">
                 <option value="">-- 먼저 엑셀 파일을 업로드하세요 --</option>
             </select>
@@ -221,9 +221,9 @@
     </div>
 
     <div class="column-selector">
-        <label>2단계: 라벨에 기입할 개별 열(Column) 항목 선택 (체크박스)</label>
+        <label>2단계: WF1 시트 3행 기준 개별 열 항목 선택 (체크박스)</label>
         <div class="checkbox-grid" id="checkboxContainer">
-            엑셀 파일을 업로드하면 시트의 모든 열 항목이 자동으로 생성됩니다.
+            엑셀 파일을 업로드하면 WF1 시트의 열 항목들이 자동으로 생성됩니다.
         </div>
     </div>
 
@@ -260,61 +260,43 @@
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, {type: 'array'});
             
-            // 데이터가 가장 많은 실제 시트 자동 탐색
-            let targetSheetName = workbook.SheetNames[0];
-            let maxRows = 0;
-
+            // 💡 핵심 수정: 파일 내 시트 중 이름이 정확히 'WF1'인 시트를 강제로 탐색
+            let targetSheetName = null;
             workbook.SheetNames.forEach(name => {
-                const sheet = workbook.Sheets[name];
-                const jsonSheet = XLSX.utils.sheet_to_json(sheet, {header: 1});
-                if (jsonSheet.length > maxRows) {
-                    maxRows = jsonSheet.length;
+                if (name.trim().toUpperCase() === "WF1") {
                     targetSheetName = name;
                 }
             });
 
+            // 만약 정확한 'WF1' 시트가 없다면 두 번째 시트 선택, 그조차 없으면 첫 번째 시트 선택
+            if (!targetSheetName) {
+                targetSheetName = workbook.SheetNames[1] || workbook.SheetNames[0];
+            }
+
             const worksheet = workbook.Sheets[targetSheetName];
             const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
             
-            if (rows.length < 2) {
-                alert("엑셀 파일에 유효한 데이터가 없습니다.");
+            if (rows.length < 3) {
+                alert(`[${targetSheetName}] 시트에 데이터가 부족합니다.`);
                 return;
             }
 
-            // 💡 병합 셀 및 상단 타이틀 행들을 건너뛰고, '고유 번호' 또는 패턴이 시작되는 진짜 헤더 행과 데이터 행들을 스마트하게 추출
-            let headerRowIdx = 0;
-            for (let i = 0; i < rows.length; i++) {
-                const rowStr = JSON.stringify(rows[i]);
-                if (rowStr.includes("고유 번호") || rowStr.includes("ID") || rowStr.includes("세대")) {
-                    headerRowIdx = i;
-                    break;
-                }
-            }
-
-            headers = rows[headerRowIdx];
+            // 💡 핵심 수정: 무조건 3번째 행(인덱스 2)을 헤더(열 제목)로 지정
+            const headerRowIdx = 2; 
+            headers = rows[headerRowIdx] || rows[0];
             rawSheetData = rows.slice(headerRowIdx + 1);
             dataMap = {};
 
             const select = document.getElementById("idSelect");
             select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
 
-            // 모든 행을 돌며 A열 또는 B열 등에 있는 고유번호와 전체 열 데이터를 매핑
+            // 💡 핵심 수정: B열(인덱스 1)의 값만 고유번호로 추출 (설명글이나 빈 값 철저히 배제)
             rawSheetData.forEach(row => {
-                // 행 안에서 ID 형태의 값이나 텍스트 탐색 (보통 첫 번째나 두 번째 칸)
-                let idVal = row[1] || row[0]; 
-                if (!idVal) {
-                    // 빈 칸이 있더라도 행 전체에서 ID 패턴 찾기
-                    for (let cell of row) {
-                        if (cell && typeof cell === 'string' && (cell.includes("-WD-") || cell.includes("-WF1-") || cell.includes("-26-"))) {
-                            idVal = cell;
-                            break;
-                        }
-                    }
-                }
-
+                const idVal = row[1]; // B열 고유번호
                 if (idVal) {
                     const idStr = String(idVal).trim();
-                    if (idStr.length > 3 && !idStr.includes("분석부") && !idStr.includes("평가부")) {
+                    // 사슴벌레 개체 ID 형식(예: A-WF1-25-01 등 대시(-)가 포함된 유효한 ID)만 필터링
+                    if (idStr.length > 3 && (idStr.includes("-WF1-") || idStr.includes("WF1") || idStr.includes("-"))) {
                         dataMap[idStr] = row;
 
                         const option = document.createElement("option");
@@ -325,13 +307,12 @@
                 }
             });
 
-            // 체크박스 동적 생성 (전체 열 항목 모두 표시)
+            // 체크박스 동적 생성 (WF1 시트 3행 헤더 기준 모든 열 항목 표시)
             const checkboxContainer = document.getElementById("checkboxContainer");
             checkboxContainer.innerHTML = "";
 
             headers.forEach((header, index) => {
                 const colLetter = getColumnLetter(index);
-                // 헤더 이름이 병합 등으로 비어있을 경우 대체 이름 부여
                 const cleanHeader = header ? String(header).split('\n')[0].trim() : `항목 ${colLetter}`;
                 
                 // 주요 항목들 기본 체크
@@ -342,7 +323,7 @@
                 checkboxContainer.appendChild(label);
             });
 
-            alert(`데이터 연동 성공! 총 ${Object.keys(dataMap).length}개의 고유번호가 로드되었습니다.`);
+            alert(`[${targetSheetName}] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 실제 고유번호가 B열에서 로드되었습니다.`);
             
             if (select.options.length > 1) {
                 select.selectedIndex = 1;
