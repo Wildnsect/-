@@ -194,7 +194,7 @@
     
     <!-- 📂 엑셀 파일 업로드 영역 -->
     <div class="upload-box">
-        <label for="excelFile">📂 구글 스프레드시트 원본 파일(.xlsx) 업로드하기</label>
+        <label for="excelFile">📂 원본 파일(.xlsx) 업로드</label>
         <input type="file" id="excelFile" accept=".xlsx, .xls" onchange="handleExcelFile(event)">
     </div>
     
@@ -311,7 +311,8 @@
                 const colLetter = getColumnLetter(index);
                 const cleanHeader = extractCleanHeaderName(header, index);
 
-                const isDefaultChecked = index < 12 || cleanHeader.includes("체중") || cleanHeader.includes("두폭") || cleanHeader.includes("특이 사항") || cleanHeader.includes("우화일");
+                // 💡 A열(인덱스 0)부터 AP열(인덱스 41)까지만 기본 체크, 이후(AQ열~)는 미체크
+                const isDefaultChecked = index <= 41;
 
                 const label = document.createElement("label");
                 label.innerHTML = `<input type="checkbox" id="col_${index}" ${isDefaultChecked ? 'checked' : ''} onchange="updateLabel()"> ${colLetter}열 (${cleanHeader})`;
