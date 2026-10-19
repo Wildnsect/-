@@ -258,7 +258,8 @@
         const reader = new FileReader();
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+            // 원본 포맷과 날짜를 정확히 읽어오도록 설정
+            const workbook = XLSX.read(data, {type: 'array', cellDates: true, raw: false});
             
             // WF1 시트 강제 타겟팅
             let targetSheetName = null;
@@ -274,7 +275,7 @@
             }
 
             const worksheet = workbook.Sheets[targetSheetName];
-            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: ""});
+            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: "", raw: false});
             
             if (rows.length < 2) {
                 alert("WF1 시트에 데이터가 부족합니다.");
@@ -290,7 +291,7 @@
             const select = document.getElementById("idSelect");
             select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
 
-            // B열(인덱스 1) 고유번호 추출
+            // 💡 오직 B열(인덱스 1) 데이터만 고유번호로 추출
             rawSheetData.forEach(row => {
                 const idVal = row[1]; // B열
                 if (idVal) {
@@ -320,7 +321,7 @@
                 checkboxContainer.appendChild(label);
             });
 
-            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 개체 ID가 로드되었습니다.`);
+            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 고유번호가 B열에서 로드되었습니다.`);
             
             if (select.options.length > 1) {
                 select.selectedIndex = 1;
@@ -330,28 +331,32 @@
         reader.readAsArrayBuffer(file);
     }
 
-    function parseDateValue(val) {
+    // 💡 날짜 데이터를 깔끔한 YYYY-MM-DD 형식으로 변환 (기타 텍스트 및 BSK 100 등은 원본 유지)
+    function formatCellDate(val) {
         if (!val) return "-";
         
         if (val instanceof Date && !isNaN(val)) {
             const y = val.getFullYear();
             const m = String(val.getMonth() + 1).padStart(2, '0');
             const d = String(val.getDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
+            if (y > 2000) return `${y}-${m}-${d}`;
         }
 
-        let num = Number(val);
-        if (!isNaN(num) && num > 30000 && num < 60000) {
-            const utcDays = Math.floor(num - 25569);
-            const utcValue = utcDays * 86400;
-            const dateInfo = new Date(utcValue * 1000);
-            const y = dateInfo.getUTCFullYear();
-            const m = String(dateInfo.getUTCMonth() + 1).padStart(2, '0');
-            const d = String(dateInfo.getUTCDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
+        let strVal = String(val).trim();
+        if (strVal.includes("T")) {
+            strVal = strVal.split("T")[0];
+        } else if (strVal.includes(" GMT") || strVal.includes(" (")) {
+            // 날짜 객체 문자열로 변환된 경우 파싱
+            const dObj = new Date(strVal);
+            if (!isNaN(dObj)) {
+                const y = dObj.getFullYear();
+                const m = String(dObj.getMonth() + 1).padStart(2, '0');
+                const d = String(dObj.getDate()).padStart(2, '0');
+                if (y > 2000) return `${y}-${m}-${d}`;
+            }
         }
 
-        return String(val).trim();
+        return strVal;
     }
 
     function updateLabel() {
@@ -380,8 +385,9 @@
 
                 let val = "-";
                 if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== "") {
-                    if (cleanHeader.includes("일") || cleanHeader.includes("일자") || rawVal instanceof Date || (typeof rawVal === 'number' && rawVal > 30000)) {
-                        val = parseDateValue(rawVal);
+                    // 날짜 관련 컬럼이거나 날짜 객체인 경우 포맷 적용, 그 외(BSK 100 등)는 원본 유지
+                    if (cleanHeader.includes("일") || cleanHeader.includes("일자") || rawVal instanceof Date || String(rawVal).includes("GMT")) {
+                        val = formatCellDate(rawVal);
                     } else {
                         val = String(rawVal).trim();
                     }
