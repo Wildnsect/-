@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>사슴벌레 사육 데이터 맞춤형 라벨 인쇄기</title>
+    <title>데이터 라벨기</title>
     <!-- 엑셀 파싱을 위한 SheetJS 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
@@ -148,6 +148,7 @@
             border-top: 1px solid #eee;
             padding-top: 3px;
             margin-top: 6px;
+            font-weight: bold;
         }
 
         .print-btn {
@@ -189,7 +190,7 @@
 <body>
 
 <div class="container">
-    <h2>beetle 🏷️ 사육 데이터 맞춤형 라벨 인쇄기</h2>
+    <h2>데이터 라벨기</h2>
     
     <!-- 📂 엑셀 파일 업로드 영역 -->
     <div class="upload-box">
@@ -238,7 +239,7 @@
                 엑셀 파일을 업로드하고 고유번호를 선택해주세요.
             </div>
             <div class="label-footer">
-                Breeding Data Management Label
+                Wildnsect
             </div>
         </div>
     </div>
@@ -396,7 +397,6 @@
             }
         });
 
-        // 💡 동일한 그룹(1병, 2병 등)끼리 묶어서 제목은 맨 앞에 딱 한 번만 출력하고, 뒤의 값들을 한 줄로 이어붙이기
         let groupMap = {};
         let groupOrder = [];
 
@@ -404,7 +404,6 @@
             let key = item.cleanHeader;
             let matchGroup = null;
 
-            // '1병 투입일', '1병', '1병 유충단계' 등 공통 병수 그룹 식별
             for (let n = 1; n <= 10; n++) {
                 if (key.includes(`${n}병`)) {
                     matchGroup = `${n}병`;
@@ -421,12 +420,10 @@
             groupMap[targetKey].push(item.val);
         });
 
-        // 최종 렌더링 라인 생성
         groupOrder.forEach(key => {
             const values = groupMap[key];
             const div = document.createElement("div");
 
-            // 그룹 항목인 경우 (예: 1병) -> 제목은 한 번만, 값들은 공백을 사이에 두고 한 줄로 연결
             if (groupMap[key].length > 1 && (key.includes("병"))) {
                 div.innerHTML = `<strong>${key}:</strong> ${values.join(" ")}`;
             } else if (values.length === 1) {
