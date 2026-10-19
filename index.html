@@ -5,6 +5,8 @@
     <title>데이터 라벨기</title>
     <!-- 엑셀 파싱을 위한 SheetJS 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- 라벨을 JPG 이미지로 저장하기 위한 html2canvas 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
         body {
             font-family: 'Malgun Gothic', sans-serif;
@@ -151,21 +153,29 @@
             font-weight: bold;
         }
 
-        .print-btn {
-            background-color: #28a745;
+        /* 버튼 그룹 영역 스타일 */
+        .btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .action-btn {
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-weight: bold;
-            width: 100%;
-            max-width: 200px;
-            display: block;
-            margin: 0 auto;
+            padding: 10px 20px;
+            font-size: 14px;
+            width: auto;
+            min-width: 150px;
         }
-        .print-btn:hover {
-            background-color: #218838;
-        }
+        .print-btn { background-color: #28a745; }
+        .print-btn:hover { background-color: #218838; }
+        
+        .jpg-btn { background-color: #007bff; }
+        .jpg-btn:hover { background-color: #0056b3; }
 
         /* 인쇄 최적화 설정 */
         @media print {
@@ -181,7 +191,7 @@
                 top: 0;
                 border: 2px solid #000;
             }
-            .print-btn, .container > div:not(.label-preview-wrapper), h2, .upload-box {
+            .btn-group, .container > div:not(.label-preview-wrapper), h2, .upload-box {
                 display: none;
             }
         }
@@ -244,7 +254,11 @@
         </div>
     </div>
 
-    <button class="print-btn" onclick="window.print()">이 라벨 인쇄하기</button>
+    <!-- 하단 버튼 그룹 (인쇄하기 및 JPG 저장하기) -->
+    <div class="btn-group">
+        <button class="action-btn print-btn" onclick="window.print()">라벨 인쇄하기</button>
+        <button class="action-btn jpg-btn" onclick="downloadLabelJpg()">JPG 파일 저장</button>
+    </div>
 </div>
 
 <script>
@@ -378,7 +392,6 @@
         document.getElementById("lblHeaderLeft").innerText = selectedSpecies;
         document.getElementById("lblHeaderRight").innerText = "ID: " + headerIdVal;
 
-        // 체크된 항목 수집
         let selectedItems = [];
         headers.forEach((header, index) => {
             const checkbox = document.getElementById("col_" + index);
@@ -433,6 +446,19 @@
                 div.innerHTML = `<strong>${key}:</strong> ${values.join(" ")}`;
             }
             bodyContainer.appendChild(div);
+        });
+    }
+
+    // 💡 현재 라벨 박스를 고화질 JPG 이미지로 변환하여 다운로드하는 함수
+    function downloadLabelJpg() {
+        const labelElement = document.getElementById("labelPreview");
+        const selectedId = document.getElementById("idSelect").value || "label";
+
+        html2canvas(labelElement, { scale: 3, backgroundColor: "#ffffff" }).then(canvas => {
+            const link = document.createElement("a");
+            link.download = `라벨_${selectedId}.jpg`;
+            link.href = canvas.toDataURL("image/jpeg", 1.0);
+            link.click();
         });
     }
 
