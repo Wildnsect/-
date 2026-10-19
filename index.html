@@ -50,7 +50,7 @@
         /* 입력 영역 반응형 그리드 */
         .input-row {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: 1fr 1fr;
             gap: 15px;
             margin-bottom: 20px;
             width: 100%;
@@ -70,26 +70,11 @@
             color: #444;
             font-size: 13px;
         }
-        select, input[type="number"], button {
+        select, button {
             padding: 10px;
             font-size: 14px;
             width: 100%;
             box-sizing: border-box;
-        }
-
-        /* 크기 조절 슬라이더 및 입력 컨트롤 */
-        .scale-control {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .scale-control input[type="range"] {
-            flex: 1;
-        }
-        .scale-control input[type="number"] {
-            width: 70px;
-            text-align: center;
-            padding: 8px;
         }
 
         /* 다중 선택 ID 셀렉터 박스 */
@@ -162,12 +147,50 @@
             width: auto;
         }
 
-        /* 라벨 박스 컨테이너 (높이 늘어남 차단 & 배율 수용) */
+        /* 💡 라벨 크기 비율(%) 전용 제어바 영역 */
+        .scale-control-bar {
+            background: #eef2f7;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+        .scale-control-bar label {
+            margin-bottom: 0;
+            font-size: 14px;
+            color: #24292f;
+            white-space: nowrap;
+        }
+        .scale-inputs {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            max-width: 400px;
+        }
+        .scale-inputs input[type="range"] {
+            flex: 1;
+            cursor: pointer;
+        }
+        .scale-inputs input[type="number"] {
+            width: 75px;
+            text-align: center;
+            padding: 6px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        /* 라벨 박스 컨테이너 */
         .label-preview-wrapper {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            align-items: flex-start; /* 💡 높이가 늘어나는 플렉스 버그 방지 */
+            align-items: flex-start;
             gap: 20px;
             margin: 20px 0;
         }
@@ -266,7 +289,7 @@
             .label-box {
                 border: 2px solid #000;
             }
-            .btn-group, .container > div:not(.label-preview-wrapper), h2, .upload-box {
+            .scale-control-bar, .btn-group, .container > div:not(.label-preview-wrapper), h2, .upload-box {
                 display: none;
             }
         }
@@ -286,7 +309,7 @@
     <div class="input-row">
         <!-- 1단계: B열 고유번호 선택 (다중 선택 기능) -->
         <div class="input-group">
-            <label>1단계: B열 고유 번호(ID) 선택 (다중 선택)</label>
+            <label>1단계: B열 고유 번호(ID) 선택 (다중 선택 가능)</label>
             <div class="id-control-btns">
                 <button type="button" onclick="selectAllIds(true)">전체 선택</button>
                 <button type="button" onclick="selectAllIds(false)">전체 해제</button>
@@ -308,21 +331,22 @@
                 <option value="기타 품종">기타 품종</option>
             </select>
         </div>
-
-        <!-- 💡 라벨 크기 설정 (%) -->
-        <div class="input-group">
-            <label for="labelScale">라벨 크기 설정 (%)</label>
-            <div class="scale-control">
-                <input type="range" id="scaleRange" min="50" max="150" value="100" step="5" oninput="syncScale(this.value)">
-                <input type="number" id="scaleNumber" min="50" max="150" value="100" step="5" onchange="syncScale(this.value)"> %
-            </div>
-        </div>
     </div>
 
     <div class="column-selector">
         <label>2단계: WF1 시트 1행(헤더) 기준 개별 열 항목 선택 (체크박스)</label>
         <div class="checkbox-grid" id="checkboxContainer">
             엑셀 파일을 업로드하면 WF1 시트의 열 항목들이 자동으로 생성됩니다.
+        </div>
+    </div>
+
+    <!-- 💡 라벨 크기 비율(%) 조절 제어바 -->
+    <div class="scale-control-bar">
+        <label for="scaleRange">📏 라벨 출력 크기 비율(%) 조절:</label>
+        <div class="scale-inputs">
+            <input type="range" id="scaleRange" min="50" max="150" value="100" step="5" oninput="syncScale(this.value)">
+            <input type="number" id="scaleNumber" min="50" max="150" value="100" step="5" onchange="syncScale(this.value)">
+            <span>%</span>
         </div>
     </div>
 
@@ -377,10 +401,6 @@
 
         boxes.forEach((box, i) => {
             box.style.transform = `scale(${scaleRatio})`;
-            
-            // 배율 적용 시 바깥 래퍼 크기 동적 연동 (여백 및 잘림 방지)
-            const unscaledWidth = box.offsetWidth / (box.dataset.scale || 1);
-            const unscaledHeight = box.offsetHeight / (box.dataset.scale || 1);
             
             box.dataset.scale = scaleRatio;
 
@@ -647,7 +667,6 @@
 
             const fileName = `${speciesText}-${aColVal}`.replace(/[\/\\?%*:|"<>]/g, "-");
 
-            // 선택된 배율(scale)을 반영하여 고화질 JPG 이미지 저장
             await html2canvas(box, { scale: 3 * scaleRatio, backgroundColor: "#ffffff" }).then(canvas => {
                 const link = document.createElement("a");
                 link.download = `${fileName}.jpg`;
