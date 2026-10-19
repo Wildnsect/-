@@ -260,7 +260,6 @@
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, {type: 'array', cellDates: true, raw: false});
             
-            // WF1 시트 강제 타겟팅
             let targetSheetName = null;
             workbook.SheetNames.forEach(name => {
                 if (name.trim().toUpperCase() === "WF1") {
@@ -281,7 +280,6 @@
                 return;
             }
 
-            // 1행(인덱스 0)을 헤더로 지정
             const headerRowIdx = 0; 
             headers = rows[headerRowIdx];
             rawSheetData = rows.slice(headerRowIdx + 1);
@@ -290,9 +288,8 @@
             const select = document.getElementById("idSelect");
             select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
 
-            // 1단계: B열(인덱스 1) 데이터로 드롭다운 선택지 구성
             rawSheetData.forEach(row => {
-                const idVal = row[1]; // B열
+                const idVal = row[1]; // B열 고유번호
                 if (idVal) {
                     const idStr = String(idVal).trim();
                     if (idStr.length > 2 && !idStr.includes("고유 번호")) {
@@ -330,14 +327,11 @@
         reader.readAsArrayBuffer(file);
     }
 
-    // 💡 헤더명에서 'A열', 'B열' 등의 열 표시와 겉의 괄호를 깔끔하게 제거해 주는 전용 정제 함수
     function extractCleanHeaderName(headerStr, index) {
         if (!headerStr) return `항목 ${index + 1}`;
-        let name = String(headerStr).split('\n')[0].trim();
-        return name;
+        return String(headerStr).split('\n')[0].trim();
     }
 
-    // 날짜 포맷 변환
     function formatCellDate(val) {
         if (!val) return "-";
         
@@ -378,16 +372,17 @@
 
         const rowData = dataMap[selectedId];
 
-        // 💡 1. 라벨 상단 오른쪽 고유번호는 엑셀 A열(인덱스 0) 데이터를 정확히 표시
         const headerIdVal = rowData[0] ? String(rowData[0]).trim() : selectedId;
 
         document.getElementById("lblHeaderLeft").innerText = selectedSpecies;
         document.getElementById("lblHeaderRight").innerText = "ID: " + headerIdVal;
 
+        // 💡 병수별(1병, 2병, 3병 등) 연속 데이터 그룹화 로직
+        // 예: [투입일, 균사/병, 유충무게/단계]가 연속으로 체크되어 있을 경우 한 줄로 병합
+        let selectedItems = [];
         headers.forEach((header, index) => {
             const checkbox = document.getElementById("col_" + index);
             if (checkbox && checkbox.checked) {
-                // 💡 2. 'A열' 및 겉 괄호 표기를 제거하고 순수 항목명(예: 고유 번호(ID), 산지 등)만 추출
                 const cleanHeader = extractCleanHeaderName(header, index);
                 const rawVal = rowData[index];
 
@@ -399,12 +394,44 @@
                         val = String(rawVal).trim();
                     }
                 }
-
-                // 열 명칭 및 외부 괄호 없이 pure 항목명만 기입
-                const div = document.createElement("div");
-                div.innerHTML = `<strong>${cleanHeader}:</strong> ${val}`;
-                bodyContainer.appendChild(div);
+                selectedItems.push({ index, cleanHeader, val });
             }
+        });
+
+        // 연속된 병 데이터(예: L열, M열, N열 등)를 하나의 그룹 줄로 합치기 위한 처리
+        let renderedLines = [];
+        let i = 0;
+        while (i < selectedItems.length) {
+            let curr = selectedItems[i];
+            
+            // 만약 '투입일', '균사/병명', '유충단계/무게' 형태의 연속된 열 패턴이라면 한 줄로 결합
+            // 예컨대 '1병 투입일', '1병', '1병 유충단계' 등이 나란히 체크된 경우
+            if (i + 2 < selectedItems.length && 
+                selectedItems[i].index + 1 === selectedItems[i+1].index && 
+                selectedItems[i+1].index + 1 === selectedItems[i+2].index &&
+                (curr.cleanHeader.includes("투입일") || curr.cleanHeader.includes("병"))) {
+                
+                let lineText = `<strong>${curr.cleanHeader}:</strong> ${curr.val} | <strong>${selectedItems[i+1].cleanHeader}:</strong> ${selectedItems[i+1].val} | <strong>${selectedItems[i+2].cleanHeader}:</strong> ${selectedItems[i+2].val}`;
+                renderedLines.push(lineText);
+                i += 3;
+            } else if (i + 1 < selectedItems.length && 
+                       selectedItems[i].index + 1 === selectedItems[i+1].index &&
+                       (curr.cleanHeader.includes("투입일") || curr.cleanHeader.includes("병"))) {
+                
+                let lineText = `<strong>${curr.cleanHeader}:</strong> ${curr.val} | <strong>${selectedItems[i+1].cleanHeader}:</strong> ${selectedItems[i+1].val}`;
+                renderedLines.push(lineText);
+                i += 2;
+            } else {
+                renderedLines.push(`<strong>${curr.cleanHeader}:</strong> ${curr.val}`);
+                i += 1;
+            }
+        }
+
+        // HTML에 반영
+        renderedLines.forEach(line => {
+            const div = document.createElement("div");
+            div.innerHTML = line;
+            bodyContainer.appendChild(div);
         });
     }
 
