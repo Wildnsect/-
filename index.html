@@ -449,14 +449,23 @@
         });
     }
 
-    // 💡 현재 라벨 박스를 고화질 JPG 이미지로 변환하여 다운로드하는 기능
+    // 💡 종명과 A열 데이터 조합으로 JPG 파일명 생성 및 저장
     function downloadLabelJpg() {
         const labelElement = document.getElementById("labelPreview");
-        const selectedId = document.getElementById("idSelect").value || "label";
+        const speciesName = document.getElementById("speciesSelect").value || "종명";
+        const selectedId = document.getElementById("idSelect").value;
+        
+        let aColVal = "고유번호";
+        if (selectedId && dataMap[selectedId] && dataMap[selectedId][0]) {
+            aColVal = String(dataMap[selectedId][0]).trim();
+        }
+
+        // 파일명으로 사용하기 부적절한 특수문자나 슬래시 방지 처리
+        const safeFileName = `${speciesName}-${aColVal}`.replace(/[\/\\?%*:|"<>]/g, "-");
 
         html2canvas(labelElement, { scale: 3, backgroundColor: "#ffffff" }).then(canvas => {
             const link = document.createElement("a");
-            link.download = `라벨_${selectedId}.jpg`;
+            link.download = `${safeFileName}.jpg`;
             link.href = canvas.toDataURL("image/jpeg", 1.0);
             link.click();
         });
