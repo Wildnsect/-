@@ -147,11 +147,12 @@
             width: auto;
         }
 
-        /* 라벨 박스 컨테이너 (다중 미리보기 지원) */
+        /* 라벨 박스 컨테이너 (내용물 분량에 맞춰 상하 높이 자동 조절) */
         .label-preview-wrapper {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
+            align-items: flex-start; /* 상단 정렬로 각 라벨 박스의 높이를 독립적으로 유지 */
             gap: 20px;
             margin: 20px 0;
         }
@@ -159,8 +160,9 @@
             display: inline-block;
             width: max-content;
             min-width: 280px;
+            height: auto; /* 내용 길이에 맞춰 자동 조절 */
             border: 2px solid #333;
-            padding: 12px 16px;
+            padding: 10px 14px 8px 14px; /* 하단 패딩 최소화 */
             box-sizing: border-box;
             background: #fff;
             text-align: left;
@@ -171,7 +173,7 @@
             color: #333;
             border-bottom: 1px solid #ddd;
             padding-bottom: 6px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -185,7 +187,7 @@
             padding: 2px 0;
         }
         .label-body div {
-            margin-bottom: 4px;
+            margin-bottom: 3px;
             white-space: nowrap;
         }
         .label-footer {
@@ -193,8 +195,8 @@
             font-size: 10px;
             color: #333;
             border-top: 1px solid #ddd;
-            padding-top: 6px;
-            margin-top: 8px;
+            padding-top: 4px;
+            margin-top: 6px;
             font-weight: bold;
         }
 
@@ -237,6 +239,7 @@
                 width: 100%;
                 display: flex;
                 flex-wrap: wrap;
+                align-items: flex-start;
                 gap: 15px;
             }
             .label-box {
@@ -441,7 +444,6 @@
         return strVal;
     }
 
-    // 💡 단독 단위 'g' 필터링 및 유효 데이터 존재 여부 판단 렌더링 로직
     function updateAllLabels() {
         const wrapper = document.getElementById("labelPreviewWrapper");
         wrapper.innerHTML = "";
@@ -533,10 +535,9 @@
             groupOrder.forEach(key => {
                 const allVals = groupMap[key].map(v => String(v).trim()).filter(v => v !== "" && v !== "-");
                 
-                // 💡 핵심 검증: 그룹 내에 'g' 이외의 실질적인 데이터(숫자, 날짜, 균사명 등)가 있는지 체크
+                // 단독 'g' 단위만 존재하는 항목 필터링
                 const hasMeaningfulData = allVals.some(v => v.toLowerCase() !== "g");
 
-                // 의미 있는 데이터가 없고 단독 'g' 단위만 있거나 데이터가 없다면 숨김!
                 if (!hasMeaningfulData) return;
 
                 const div = document.createElement("div");
