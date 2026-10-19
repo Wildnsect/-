@@ -371,14 +371,12 @@
         }
 
         const rowData = dataMap[selectedId];
-
         const headerIdVal = rowData[0] ? String(rowData[0]).trim() : selectedId;
 
         document.getElementById("lblHeaderLeft").innerText = selectedSpecies;
         document.getElementById("lblHeaderRight").innerText = "ID: " + headerIdVal;
 
-        // 💡 병수별(1병, 2병, 3병 등) 연속 데이터 그룹화 로직
-        // 예: [투입일, 균사/병, 유충무게/단계]가 연속으로 체크되어 있을 경우 한 줄로 병합
+        // 체크된 항목 수집
         let selectedItems = [];
         headers.forEach((header, index) => {
             const checkbox = document.getElementById("col_" + index);
@@ -394,43 +392,46 @@
                         val = String(rawVal).trim();
                     }
                 }
-                selectedItems.push({ index, cleanHeader, val });
+                selectedItems.push({ cleanHeader, val });
             }
         });
 
-        // 연속된 병 데이터(예: L열, M열, N열 등)를 하나의 그룹 줄로 합치기 위한 처리
-        let renderedLines = [];
-        let i = 0;
-        while (i < selectedItems.length) {
-            let curr = selectedItems[i];
-            
-            // 만약 '투입일', '균사/병명', '유충단계/무게' 형태의 연속된 열 패턴이라면 한 줄로 결합
-            // 예컨대 '1병 투입일', '1병', '1병 유충단계' 등이 나란히 체크된 경우
-            if (i + 2 < selectedItems.length && 
-                selectedItems[i].index + 1 === selectedItems[i+1].index && 
-                selectedItems[i+1].index + 1 === selectedItems[i+2].index &&
-                (curr.cleanHeader.includes("투입일") || curr.cleanHeader.includes("병"))) {
-                
-                let lineText = `<strong>${curr.cleanHeader}:</strong> ${curr.val} | <strong>${selectedItems[i+1].cleanHeader}:</strong> ${selectedItems[i+1].val} | <strong>${selectedItems[i+2].cleanHeader}:</strong> ${selectedItems[i+2].val}`;
-                renderedLines.push(lineText);
-                i += 3;
-            } else if (i + 1 < selectedItems.length && 
-                       selectedItems[i].index + 1 === selectedItems[i+1].index &&
-                       (curr.cleanHeader.includes("투입일") || curr.cleanHeader.includes("병"))) {
-                
-                let lineText = `<strong>${curr.cleanHeader}:</strong> ${curr.val} | <strong>${selectedItems[i+1].cleanHeader}:</strong> ${selectedItems[i+1].val}`;
-                renderedLines.push(lineText);
-                i += 2;
-            } else {
-                renderedLines.push(`<strong>${curr.cleanHeader}:</strong> ${curr.val}`);
-                i += 1;
-            }
-        }
+        // 💡 동일한 헤더 제목(예: '1병', '2병', '3병' 등)끼리 그룹화하여 한 줄로 합치는 로직
+        let groupMap = {};
+        let groupOrder = [];
 
-        // HTML에 반영
-        renderedLines.forEach(line => {
+        selectedItems.forEach(item => {
+            let key = item.cleanHeader;
+            // 만약 '1병 투입일', '1병', '1병 유충단계'처럼 헤더에 '병'이 들어가거나 같은 그룹 성격인 경우
+            // 공통 키워드(예: '1병', '2병', '3병', '4병', '5병')가 포함되어 있으면 하나의 그룹으로 묶어줌
+            for (let n = 1; n <= 10; n++) {
+                if (key.includes(`${n}병`)) {
+                    key = `${n}병`;
+                    break;
+                }
+            }
+
+            if (!groupMap[key]) {
+                groupMap[key] = [];
+                groupOrder.push(key);
+            }
+            groupMap[key].push(item.val);
+        });
+
+        // 최종 렌더링 라인 생성
+        groupOrder.forEach(key => {
+            const values = groupMap[key];
             const div = document.createElement("div");
-            div.innerHTML = line;
+
+            // 고유 번호(ID)나 산지 등 일반 단독 항목은 "항목명: 값" 형태로 출력
+            // '1병', '2병' 등 그룹화된 항목은 요청하신 대로 "1병: 값1 값2 값3" 형태로 한 줄에 출력
+            if (key.includes("병") && values.length > 1) {
+                div.innerHTML = `<strong>${key}:</strong> ${values.join(" ")}`;
+            } else if (values.length === 1) {
+                div.innerHTML = `<strong>${key}:</strong> ${values[0]}`;
+            } else {
+                div.innerHTML = `<strong>${key}:</strong> ${values.join(" ")}`;
+            }
             bodyContainer.appendChild(div);
         });
     }
