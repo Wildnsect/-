@@ -325,7 +325,7 @@
                 const colLetter = getColumnLetter(index);
                 const cleanHeader = extractCleanHeaderName(header, index);
 
-                // 💡 A열(인덱스 0)부터 AP열(인덱스 41)까지만 기본 체크, 이후(AQ열~)는 미체크
+                // A열(인덱스 0)부터 AP열(인덱스 41)까지만 기본 체크, 이후(AQ열~)는 미체크
                 const isDefaultChecked = index <= 41;
 
                 const label = document.createElement("label");
@@ -449,7 +449,7 @@
         });
     }
 
-    // 💡 현재 라벨 박스를 고화질 JPG 이미지로 변환하여 다운로드하는 함수
+    // 💡 현재 라벨 박스를 고화질 JPG 이미지로 변환하여 다운로드하는 기능
     function downloadLabelJpg() {
         const labelElement = document.getElementById("labelPreview");
         const selectedId = document.getElementById("idSelect").value || "label";
