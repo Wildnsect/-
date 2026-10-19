@@ -449,19 +449,26 @@
         });
     }
 
-    // 💡 종명과 A열 데이터 조합으로 JPG 파일명 생성 및 저장
+    // 💡 종명과 라벨 헤더 우측 A열 데이터를 실시간으로 읽어서 [종명]-[A열데이터].jpg 생성
     function downloadLabelJpg() {
         const labelElement = document.getElementById("labelPreview");
-        const speciesName = document.getElementById("speciesSelect").value || "종명";
-        const selectedId = document.getElementById("idSelect").value;
         
-        let aColVal = "고유번호";
-        if (selectedId && dataMap[selectedId] && dataMap[selectedId][0]) {
-            aColVal = String(dataMap[selectedId][0]).trim();
+        // 1. 라벨 상단 헤더 왼쪽(종명) 읽기
+        const speciesText = document.getElementById("lblHeaderLeft").innerText.trim();
+        
+        // 2. 라벨 상단 헤더 오른쪽(ID: ...) 읽고 "ID: " 부분만 지워서 순수 A열 데이터만 가져오기
+        let rawIdText = document.getElementById("lblHeaderRight").innerText.trim();
+        let aColVal = rawIdText.replace(/^ID:\s*/, '').trim();
+
+        if (!aColVal || aColVal === '-') {
+            aColVal = '고유번호';
         }
 
-        // 파일명으로 사용하기 부적절한 특수문자나 슬래시 방지 처리
-        const safeFileName = `${speciesName}-${aColVal}`.replace(/[\/\\?%*:|"<>]/g, "-");
+        // 3. 파일 이름 조합: [종명]-[A열데이터].jpg
+        let fileName = `${speciesText}-${aColVal}`;
+        
+        // 파일명에 쓸 수 없는 특수문자(/ \ ? % * : | " < >) 정제
+        const safeFileName = fileName.replace(/[\/\\?%*:|"<>]/g, "-");
 
         html2canvas(labelElement, { scale: 3, backgroundColor: "#ffffff" }).then(canvas => {
             const link = document.createElement("a");
