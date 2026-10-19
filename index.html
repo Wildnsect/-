@@ -258,7 +258,6 @@
         const reader = new FileReader();
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
-            // 원본 포맷과 날짜를 정확히 읽어오도록 설정
             const workbook = XLSX.read(data, {type: 'array', cellDates: true, raw: false});
             
             // WF1 시트 강제 타겟팅
@@ -282,7 +281,7 @@
                 return;
             }
 
-            // 💡 1행(인덱스 0)을 헤더로 지정하고, 2행(인덱스 1)부터 데이터 추출
+            // 1행(인덱스 0)을 헤더로 지정
             const headerRowIdx = 0; 
             headers = rows[headerRowIdx];
             rawSheetData = rows.slice(headerRowIdx + 1);
@@ -291,7 +290,7 @@
             const select = document.getElementById("idSelect");
             select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
 
-            // 💡 오직 B열(인덱스 1) 데이터만 고유번호로 추출
+            // 1단계: B열(인덱스 1) 데이터로 드롭다운 생성
             rawSheetData.forEach(row => {
                 const idVal = row[1]; // B열
                 if (idVal) {
@@ -321,7 +320,7 @@
                 checkboxContainer.appendChild(label);
             });
 
-            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 고유번호가 B열에서 로드되었습니다.`);
+            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 고유번호가 로드되었습니다.`);
             
             if (select.options.length > 1) {
                 select.selectedIndex = 1;
@@ -331,7 +330,7 @@
         reader.readAsArrayBuffer(file);
     }
 
-    // 💡 날짜 데이터를 깔끔한 YYYY-MM-DD 형식으로 변환 (기타 텍스트 및 BSK 100 등은 원본 유지)
+    // 날짜 포맷 변환
     function formatCellDate(val) {
         if (!val) return "-";
         
@@ -346,7 +345,6 @@
         if (strVal.includes("T")) {
             strVal = strVal.split("T")[0];
         } else if (strVal.includes(" GMT") || strVal.includes(" (")) {
-            // 날짜 객체 문자열로 변환된 경우 파싱
             const dObj = new Date(strVal);
             if (!isNaN(dObj)) {
                 const y = dObj.getFullYear();
@@ -373,19 +371,21 @@
 
         const rowData = dataMap[selectedId];
 
+        // 💡 1. 상단 헤더 ID는 엑셀 A열(인덱스 0) 데이터 표시
+        const headerIdVal = rowData[0] ? String(rowData[0]).trim() : selectedId;
+
         document.getElementById("lblHeaderLeft").innerText = selectedSpecies;
-        document.getElementById("lblHeaderRight").innerText = "ID: " + selectedId;
+        document.getElementById("lblHeaderRight").innerText = "ID: " + headerIdVal;
 
         headers.forEach((header, index) => {
             const checkbox = document.getElementById("col_" + index);
             if (checkbox && checkbox.checked) {
-                const colLetter = getColumnLetter(index);
-                const cleanHeader = header ? String(header).split('\n')[0].trim() : `항목 ${colLetter}`;
+                // 💡 2. 'A열' 및 줄바꿈/불필요 문자를 제거하고 깔끔한 헤더명만 추출
+                const cleanHeader = header ? String(header).split('\n')[0].trim() : `항목 ${index + 1}`;
                 const rawVal = rowData[index];
 
                 let val = "-";
                 if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== "") {
-                    // 날짜 관련 컬럼이거나 날짜 객체인 경우 포맷 적용, 그 외(BSK 100 등)는 원본 유지
                     if (cleanHeader.includes("일") || cleanHeader.includes("일자") || rawVal instanceof Date || String(rawVal).includes("GMT")) {
                         val = formatCellDate(rawVal);
                     } else {
@@ -393,8 +393,9 @@
                     }
                 }
 
+                // '열 (항목명):' 표기를 빼고 오직 순수 항목명만 출력
                 const div = document.createElement("div");
-                div.innerHTML = `<strong>${colLetter}열 (${cleanHeader}):</strong> ${val}`;
+                div.innerHTML = `<strong>${cleanHeader}:</strong> ${val}`;
                 bodyContainer.appendChild(div);
             }
         });
