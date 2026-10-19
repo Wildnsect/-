@@ -198,9 +198,9 @@
     </div>
     
     <div class="input-row">
-        <!-- 1단계: A열 고유번호 선택 -->
+        <!-- 1단계: B열 고유번호 선택 -->
         <div class="input-group">
-            <label for="idSelect">1단계: A열 고유 번호(ID) 선택</label>
+            <label for="idSelect">1단계: B열 고유 번호(ID) 선택</label>
             <select id="idSelect" onchange="updateLabel()">
                 <option value="">-- 먼저 엑셀 파일을 업로드하세요 --</option>
             </select>
@@ -221,7 +221,7 @@
     </div>
 
     <div class="column-selector">
-        <label>2단계: WF1 시트 3행 기준 개별 열 항목 선택 (체크박스)</label>
+        <label>2단계: WF1 시트 1행(헤더) 기준 개별 열 항목 선택 (체크박스)</label>
         <div class="checkbox-grid" id="checkboxContainer">
             엑셀 파일을 업로드하면 WF1 시트의 열 항목들이 자동으로 생성됩니다.
         </div>
@@ -260,6 +260,7 @@
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, {type: 'array', cellDates: true});
             
+            // WF1 시트 강제 타겟팅
             let targetSheetName = null;
             workbook.SheetNames.forEach(name => {
                 if (name.trim().toUpperCase() === "WF1") {
@@ -275,13 +276,13 @@
             const worksheet = workbook.Sheets[targetSheetName];
             const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: ""});
             
-            if (rows.length < 3) {
+            if (rows.length < 2) {
                 alert("WF1 시트에 데이터가 부족합니다.");
                 return;
             }
 
-            // 💡 3번째 행(인덱스 2)을 헤더로 지정
-            const headerRowIdx = 2; 
+            // 💡 1행(인덱스 0)을 헤더로 지정하고, 2행(인덱스 1)부터 데이터 추출
+            const headerRowIdx = 0; 
             headers = rows[headerRowIdx];
             rawSheetData = rows.slice(headerRowIdx + 1);
             dataMap = {};
@@ -289,9 +290,9 @@
             const select = document.getElementById("idSelect");
             select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
 
-            // 💡 1단계 고유번호를 A열(인덱스 0) 기준으로 추출
+            // B열(인덱스 1) 고유번호 추출
             rawSheetData.forEach(row => {
-                const idVal = row[0]; // A열 고유번호
+                const idVal = row[1]; // B열
                 if (idVal) {
                     const idStr = String(idVal).trim();
                     if (idStr.length > 2 && !idStr.includes("고유 번호")) {
@@ -319,7 +320,7 @@
                 checkboxContainer.appendChild(label);
             });
 
-            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 개체 ID가 A열에서 로드되었습니다.`);
+            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 개체 ID가 로드되었습니다.`);
             
             if (select.options.length > 1) {
                 select.selectedIndex = 1;
