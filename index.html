@@ -198,9 +198,9 @@
     </div>
     
     <div class="input-row">
-        <!-- 1단계: B열 고유번호 선택 -->
+        <!-- 1단계: A열 고유번호 선택 -->
         <div class="input-group">
-            <label for="idSelect">1단계: B열 고유 번호(ID) 선택</label>
+            <label for="idSelect">1단계: A열 고유 번호(ID) 선택</label>
             <select id="idSelect" onchange="updateLabel()">
                 <option value="">-- 먼저 엑셀 파일을 업로드하세요 --</option>
             </select>
@@ -289,9 +289,9 @@
             const select = document.getElementById("idSelect");
             select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
 
-            // B열(인덱스 1) 고유번호 추출
+            // 💡 1단계 고유번호를 A열(인덱스 0) 기준으로 추출
             rawSheetData.forEach(row => {
-                const idVal = row[1]; // B열
+                const idVal = row[0]; // A열 고유번호
                 if (idVal) {
                     const idStr = String(idVal).trim();
                     if (idStr.length > 2 && !idStr.includes("고유 번호")) {
@@ -319,7 +319,7 @@
                 checkboxContainer.appendChild(label);
             });
 
-            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 개체 ID가 로드되었습니다.`);
+            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 개체 ID가 A열에서 로드되었습니다.`);
             
             if (select.options.length > 1) {
                 select.selectedIndex = 1;
@@ -329,11 +329,9 @@
         reader.readAsArrayBuffer(file);
     }
 
-    // 💡 오직 날짜 데이터 및 날짜 객체만 정확히 YYYY-MM-DD로 변환하고, 일반 텍스트(BSK 100 등)는 절대 건드리지 않고 원본 유지
     function parseDateValue(val) {
         if (!val) return "-";
         
-        // 1. 자바스크립트 Date 객체인 경우
         if (val instanceof Date && !isNaN(val)) {
             const y = val.getFullYear();
             const m = String(val.getMonth() + 1).padStart(2, '0');
@@ -341,7 +339,6 @@
             return `${y}-${m}-${d}`;
         }
 
-        // 2. 숫자로 들어온 엑셀 시리얼 넘버인 경우
         let num = Number(val);
         if (!isNaN(num) && num > 30000 && num < 60000) {
             const utcDays = Math.floor(num - 25569);
@@ -353,7 +350,6 @@
             return `${y}-${m}-${d}`;
         }
 
-        // 3. 일반 텍스트(BSK 100 등)는 공백을 자르지 않고 원본 그대로 반환
         return String(val).trim();
     }
 
@@ -383,11 +379,9 @@
 
                 let val = "-";
                 if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== "") {
-                    // 💡 헤더 이름에 '일' 또는 '일자'가 포함되어 있거나 실제 날짜 객체/시리얼 넘버일 때만 날짜 포맷 적용
                     if (cleanHeader.includes("일") || cleanHeader.includes("일자") || rawVal instanceof Date || (typeof rawVal === 'number' && rawVal > 30000)) {
                         val = parseDateValue(rawVal);
                     } else {
-                        // 일반 텍스트(푸딩컵, 균사 이름 등)는 띄어쓰기 포함하여 원본 그대로 출력
                         val = String(rawVal).trim();
                     }
                 }
