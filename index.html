@@ -414,7 +414,7 @@
     }
 
     function formatCellDate(val) {
-        if (!val) return "-";
+        if (!val) return null;
         
         if (val instanceof Date && !isNaN(val)) {
             const y = val.getFullYear();
@@ -424,6 +424,8 @@
         }
 
         let strVal = String(val).trim();
+        if (strVal === "" || strVal === "-") return null;
+
         if (strVal.includes("T")) {
             strVal = strVal.split("T")[0];
         } else if (strVal.includes(" GMT") || strVal.includes(" (")) {
@@ -439,7 +441,7 @@
         return strVal;
     }
 
-    // 선택된 ID들에 대해 다중 라벨 생성 및 데이터 없는 항목 숨김 로직
+    // 💡 데이터가 없는 항목(- 또는 빈값)을 완전히 필터링하여 숨기는 렌더링 로직
     function updateAllLabels() {
         const wrapper = document.getElementById("labelPreviewWrapper");
         wrapper.innerHTML = "";
@@ -467,7 +469,6 @@
 
             const headerIdVal = rowData[0] ? String(rowData[0]).trim() : selectedId;
 
-            // 라벨 박스 엘리먼트 생성
             const labelBox = document.createElement("div");
             labelBox.className = "label-box";
             labelBox.setAttribute("data-species", selectedSpecies);
@@ -480,8 +481,8 @@
             const bodyDiv = document.createElement("div");
             bodyDiv.className = "label-body";
 
-            // 체크된 열 항목 데이터 수집
-            let selectedItems = [];
+            // 단독 항목과 그룹 항목에 대한 데이터를 먼저 수집
+            let rawItems = [];
             headers.forEach((header, index) => {
                 const colCb = document.getElementById("col_" + index);
                 if (colCb && colCb.checked) {
@@ -491,7 +492,6 @@
                     let val = null;
                     if (rawVal !== undefined && rawVal !== null) {
                         const trimmedStr = String(rawVal).trim();
-                        // 💡 데이터가 없거나 '-' 또는 빈 문자열이면 null로 처리하여 숨김
                         if (trimmedStr !== "" && trimmedStr !== "-") {
                             if (cleanHeader.includes("일") || cleanHeader.includes("일자") || rawVal instanceof Date || String(rawVal).includes("GMT")) {
                                 val = formatCellDate(rawVal);
@@ -500,19 +500,19 @@
                             }
                         }
                     }
-                    
-                    // 값(val)이 존재하는 경우에만 항목에 추가
+
+                    // 유효한 데이터가 있는 경우만 추가 (- 나 빈값 제외)
                     if (val !== null && val !== "-") {
-                        selectedItems.push({ cleanHeader, val });
+                        rawItems.push({ cleanHeader, val });
                     }
                 }
             });
 
-            // 병수(1병, 2병 등) 그룹화 처리
+            // 그룹화 처리 (1병, 2병 등)
             let groupMap = {};
             let groupOrder = [];
 
-            selectedItems.forEach(item => {
+            rawItems.forEach(item => {
                 let key = item.cleanHeader;
                 let matchGroup = null;
 
@@ -532,8 +532,11 @@
                 groupMap[targetKey].push(item.val);
             });
 
+            // 💡 그룹 내의 모든 값들이 비어있거나 없으면 아예 출력하지 않음
             groupOrder.forEach(key => {
-                const values = groupMap[key];
+                const values = groupMap[key].filter(v => v !== null && v !== "" && v !== "-");
+                if (values.length === 0) return; // 데이터가 없으면 통째로 숨김!
+
                 const div = document.createElement("div");
 
                 if (groupMap[key].length > 1 && (key.includes("병"))) {
@@ -558,7 +561,6 @@
         });
     }
 
-    // 💡 생성된 모든 라벨을 순차적으로 각각의 [종명]-[A열데이터].jpg 파일로 일괄 저장
     async function downloadAllLabelsJpg() {
         const labelBoxes = document.querySelectorAll(".label-box");
         if (labelBoxes.length === 0) {
@@ -579,7 +581,6 @@
                 link.href = canvas.toDataURL("image/jpeg", 1.0);
                 link.click();
             });
-            // 연속 다운로드 브라우저 차단 방지를 위한 약간의 대기시간
             await new Promise(resolve => setTimeout(resolve, 300));
         }
     }
