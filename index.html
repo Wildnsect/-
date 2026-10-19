@@ -7,6 +7,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- 라벨을 JPG 이미지로 저장하기 위한 html2canvas 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- 일괄 저장 Zip 압축을 위한 JSZip 및 FileSaver 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
     <style>
         body {
             font-family: 'Malgun Gothic', sans-serif;
@@ -77,22 +81,20 @@
             box-sizing: border-box;
         }
         
-        /* 개별 열 체크박스 영역 */
-        .column-selector {
+        /* 다중 ID 선택 박스 및 열 선택 박스 레아아웃 */
+        .selector-box {
             background: #f8f9fa;
             padding: 15px;
             border-radius: 6px;
             border: 1px solid #ddd;
-            margin-bottom: 20px;
-            max-height: 280px;
+            max-height: 200px;
             overflow-y: auto;
             box-sizing: border-box;
-            width: 100%;
         }
         .checkbox-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 10px;
+            gap: 8px;
         }
         .checkbox-grid label {
             font-weight: normal;
@@ -101,25 +103,39 @@
             align-items: center;
             gap: 6px;
             cursor: pointer;
+            margin-bottom: 0;
         }
         .checkbox-grid input {
             width: auto;
         }
 
-        /* 라벨 박스: 내용에 딱 맞춰 컴팩트하게 자동 조절 */
-        .label-preview-wrapper {
-            text-align: center;
-            margin: 20px 0;
+        .select-all-bar {
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+            border-bottom: 1px dashed #ccc;
+            font-weight: bold;
+            font-size: 13px;
         }
+
+        /* 라벨 다중 그리드 배치 영역 */
+        .labels-preview-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin: 25px 0;
+        }
+
         .label-box {
             display: inline-block;
             width: max-content;
-            min-width: 280px;
+            min-width: 270px;
             border: 2px solid #333;
             padding: 12px 16px;
             box-sizing: border-box;
             background: #fff;
             text-align: left;
+            page-break-inside: avoid;
         }
         .label-header {
             font-size: 13px;
@@ -157,7 +173,7 @@
         .btn-group {
             display: flex;
             justify-content: center;
-            gap: 10px;
+            gap: 12px;
             margin-top: 20px;
         }
         .action-btn {
@@ -166,10 +182,10 @@
             border-radius: 4px;
             cursor: pointer;
             font-weight: bold;
-            padding: 10px 20px;
+            padding: 12px 24px;
             font-size: 14px;
             width: auto;
-            min-width: 150px;
+            min-width: 170px;
         }
         .print-btn { background-color: #28a745; }
         .print-btn:hover { background-color: #218838; }
@@ -182,16 +198,22 @@
             body * {
                 visibility: hidden;
             }
-            .label-box, .label-box * {
+            .labels-preview-container, .labels-preview-container * {
                 visibility: visible;
             }
-            .label-box {
+            .labels-preview-container {
                 position: absolute;
                 left: 0;
                 top: 0;
-                border: 2px solid #000;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 15px;
             }
-            .btn-group, .container > div:not(.label-preview-wrapper), h2, .upload-box {
+            .label-box {
+                border: 2px solid #000;
+                margin-bottom: 10px;
+            }
+            .btn-group, .container > div:not(.labels-preview-container), h2, .upload-box {
                 display: none;
             }
         }
@@ -209,18 +231,23 @@
     </div>
     
     <div class="input-row">
-        <!-- 1단계: B열 고유번호 선택 -->
+        <!-- 1단계: B열 고유번호 다중 선택 -->
         <div class="input-group">
-            <label for="idSelect">1단계: B열 고유 번호(ID) 선택</label>
-            <select id="idSelect" onchange="updateLabel()">
-                <option value="">-- 먼저 엑셀 파일을 업로드하세요 --</option>
-            </select>
+            <label>1단계: B열 고유 번호(ID) 선택 (다중 선택 가능)</label>
+            <div class="selector-box">
+                <div class="select-all-bar">
+                    <label><input type="checkbox" id="selectAllIds" onchange="toggleSelectAllIds(this)"> <strong>[전체 선택 / 해제]</strong></label>
+                </div>
+                <div class="checkbox-grid" id="idCheckboxContainer">
+                    엑셀 파일을 먼저 업로드하세요.
+                </div>
+            </div>
         </div>
 
         <!-- 추가 설정: 상단 종(Species) 선택 -->
         <div class="input-group">
             <label for="speciesSelect">라벨 상단 종(Species) 선택</label>
-            <select id="speciesSelect" onchange="updateLabel()">
+            <select id="speciesSelect" onchange="updateAllLabels()">
                 <option value="왕사슴벌레">왕사슴벌레</option>
                 <option value="넓적사슴벌레">넓적사슴벌레</option>
                 <option value="애사슴벌레">애사슴벌레</option>
@@ -231,33 +258,24 @@
         </div>
     </div>
 
-    <div class="column-selector">
+    <div class="input-group">
         <label>2단계: WF1 시트 1행(헤더) 기준 개별 열 항목 선택 (체크박스)</label>
-        <div class="checkbox-grid" id="checkboxContainer">
-            엑셀 파일을 업로드하면 WF1 시트의 열 항목들이 자동으로 생성됩니다.
-        </div>
-    </div>
-
-    <!-- 라벨 미리보기 및 출력 영역 -->
-    <div class="label-preview-wrapper">
-        <div class="label-box" id="labelPreview">
-            <div class="label-header">
-                <span id="lblHeaderLeft">왕사슴벌레</span>
-                <span id="lblHeaderRight">ID: -</span>
-            </div>
-            <div class="label-body" id="labelBodyContent">
-                엑셀 파일을 업로드하고 고유번호를 선택해주세요.
-            </div>
-            <div class="label-footer">
-                Wildnsect 지조
+        <div class="selector-box">
+            <div class="checkbox-grid" id="columnCheckboxContainer">
+                엑셀 파일을 업로드하면 WF1 시트의 열 항목들이 자동으로 생성됩니다.
             </div>
         </div>
     </div>
 
-    <!-- 하단 버튼 그룹 (인쇄하기 및 JPG 저장하기) -->
+    <!-- 라벨 다중 미리보기 및 출력 영역 -->
+    <div class="labels-preview-container" id="labelsPreviewContainer">
+        <div style="color:#777; padding:20px;">엑셀 파일을 업로드하고 고유번호를 선택하시면 라벨이 생성됩니다.</div>
+    </div>
+
+    <!-- 하단 버튼 그룹 (인쇄하기 및 JPG 일괄 저장) -->
     <div class="btn-group">
         <button class="action-btn print-btn" onclick="window.print()">라벨 인쇄하기</button>
-        <button class="action-btn jpg-btn" onclick="downloadLabelJpg()">JPG 파일 저장</button>
+        <button class="action-btn jpg-btn" onclick="downloadAllLabelsZip()">JPG 파일 일괄 저장</button>
     </div>
 </div>
 
@@ -265,6 +283,7 @@
     let rawSheetData = [];
     let headers = [];
     let dataMap = {};
+    let idList = [];
 
     function handleExcelFile(event) {
         const file = event.target.files[0];
@@ -299,48 +318,62 @@
             headers = rows[headerRowIdx];
             rawSheetData = rows.slice(headerRowIdx + 1);
             dataMap = {};
+            idList = [];
 
-            const select = document.getElementById("idSelect");
-            select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
-
+            // 1단계: B열 고유번호 수집
             rawSheetData.forEach(row => {
-                const idVal = row[1]; // B열 고유번호
+                const idVal = row[1]; // B열
                 if (idVal) {
                     const idStr = String(idVal).trim();
                     if (idStr.length > 2 && !idStr.includes("고유 번호")) {
-                        dataMap[idStr] = row;
-
-                        const option = document.createElement("option");
-                        option.value = idStr;
-                        option.text = idStr;
-                        select.appendChild(option);
+                        if (!dataMap[idStr]) {
+                            dataMap[idStr] = row;
+                            idList.push(idStr);
+                        }
                     }
                 }
             });
 
-            const checkboxContainer = document.getElementById("checkboxContainer");
-            checkboxContainer.innerHTML = "";
+            // 1단계 ID 체크박스 그리드 생성
+            const idContainer = document.getElementById("idCheckboxContainer");
+            idContainer.innerHTML = "";
+            idList.forEach((idStr, idx) => {
+                const label = document.createElement("label");
+                // 기본으로 첫 번째 개체만 체크
+                const isChecked = idx === 0 ? 'checked' : '';
+                label.innerHTML = `<input type="checkbox" class="id-chk" value="${idStr}" ${isChecked} onchange="updateAllLabels()"> ${idStr}`;
+                idContainer.appendChild(label);
+            });
+
+            // 2단계 헤더 체크박스 그리드 생성
+            const colContainer = document.getElementById("columnCheckboxContainer");
+            colContainer.innerHTML = "";
 
             headers.forEach((header, index) => {
                 const colLetter = getColumnLetter(index);
                 const cleanHeader = extractCleanHeaderName(header, index);
 
-                // A열(인덱스 0)부터 AP열(인덱스 41)까지만 기본 체크, 이후(AQ열~)는 미체크
+                // A열(0)부터 AP열(41)까지만 기본 체크
                 const isDefaultChecked = index <= 41;
 
                 const label = document.createElement("label");
-                label.innerHTML = `<input type="checkbox" id="col_${index}" ${isDefaultChecked ? 'checked' : ''} onchange="updateLabel()"> ${colLetter}열 (${cleanHeader})`;
-                checkboxContainer.appendChild(label);
+                label.innerHTML = `<input type="checkbox" class="col-chk" id="col_${index}" ${isDefaultChecked ? 'checked' : ''} onchange="updateAllLabels()"> ${colLetter}열 (${cleanHeader})`;
+                colContainer.appendChild(label);
             });
 
-            alert(`[WF1] 시트 연동 성공! 총 ${Object.keys(dataMap).length}개의 고유번호가 로드되었습니다.`);
-            
-            if (select.options.length > 1) {
-                select.selectedIndex = 1;
-                updateLabel();
-            }
+            alert(`[WF1] 시트 연동 성공! 총 ${idList.length}개의 고유번호가 로드되었습니다.`);
+            updateAllLabels();
         };
         reader.readAsArrayBuffer(file);
+    }
+
+    // 전체 ID 선택/해제 토글
+    function toggleSelectAllIds(master) {
+        const idCheckboxes = document.querySelectorAll('.id-chk');
+        idCheckboxes.forEach(chk => {
+            chk.checked = master.checked;
+        });
+        updateAllLabels();
     }
 
     function extractCleanHeaderName(headerStr, index) {
@@ -374,107 +407,138 @@
         return strVal;
     }
 
-    function updateLabel() {
-        const selectedId = document.getElementById("idSelect").value;
-        const selectedSpecies = document.getElementById("speciesSelect").value;
-        const bodyContainer = document.getElementById("labelBodyContent");
-        bodyContainer.innerHTML = "";
+    // 선택된 모든 ID에 대해 각각의 라벨 카드 바인딩
+    function updateAllLabels() {
+        const mainContainer = document.getElementById("labelsPreviewContainer");
+        mainContainer.innerHTML = "";
 
-        if (!selectedId || !dataMap[selectedId]) {
-            document.getElementById("lblHeaderRight").innerText = "ID: -";
-            bodyContainer.innerHTML = "고유번호를 선택해주세요.";
+        const selectedSpecies = document.getElementById("speciesSelect").value;
+        const selectedIdCheckboxes = document.querySelectorAll('.id-chk:checked');
+
+        if (selectedIdCheckboxes.length === 0) {
+            mainContainer.innerHTML = `<div style="color:#e74c3c; padding:20px;">선택된 고유번호(ID)가 없습니다. ID를 선택해주세요.</div>`;
             return;
         }
 
-        const rowData = dataMap[selectedId];
-        const headerIdVal = rowData[0] ? String(rowData[0]).trim() : selectedId;
+        selectedIdCheckboxes.forEach(chk => {
+            const selectedId = chk.value;
+            const rowData = dataMap[selectedId];
+            if (!rowData) return;
 
-        document.getElementById("lblHeaderLeft").innerText = selectedSpecies;
-        document.getElementById("lblHeaderRight").innerText = "ID: " + headerIdVal;
+            const headerIdVal = rowData[0] ? String(rowData[0]).trim() : selectedId;
 
-        let selectedItems = [];
-        headers.forEach((header, index) => {
-            const checkbox = document.getElementById("col_" + index);
-            if (checkbox && checkbox.checked) {
-                const cleanHeader = extractCleanHeaderName(header, index);
-                const rawVal = rowData[index];
+            // 라벨 엘리먼트 생성
+            const labelBox = document.createElement("div");
+            labelBox.className = "label-box";
+            labelBox.setAttribute("data-id", selectedId);
+            labelBox.setAttribute("data-acol", headerIdVal);
 
-                let val = "-";
-                if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== "") {
-                    if (cleanHeader.includes("일") || cleanHeader.includes("일자") || rawVal instanceof Date || String(rawVal).includes("GMT")) {
-                        val = formatCellDate(rawVal);
-                    } else {
-                        val = String(rawVal).trim();
+            const labelHeader = document.createElement("div");
+            labelHeader.className = "label-header";
+            labelHeader.innerHTML = `<span>${selectedSpecies}</span><span>ID: ${headerIdVal}</span>`;
+
+            const labelBody = document.createElement("div");
+            labelBody.className = "label-body";
+
+            // 체크된 열 항목 수집
+            let selectedItems = [];
+            headers.forEach((header, index) => {
+                const colCheckbox = document.getElementById("col_" + index);
+                if (colCheckbox && colCheckbox.checked) {
+                    const cleanHeader = extractCleanHeaderName(header, index);
+                    const rawVal = rowData[index];
+
+                    let val = "-";
+                    if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== "") {
+                        if (cleanHeader.includes("일") || cleanHeader.includes("일자") || rawVal instanceof Date || String(rawVal).includes("GMT")) {
+                            val = formatCellDate(rawVal);
+                        } else {
+                            val = String(rawVal).trim();
+                        }
+                    }
+                    selectedItems.push({ cleanHeader, val });
+                }
+            });
+
+            let groupMap = {};
+            let groupOrder = [];
+
+            selectedItems.forEach(item => {
+                let key = item.cleanHeader;
+                let matchGroup = null;
+
+                for (let n = 1; n <= 10; n++) {
+                    if (key.includes(`${n}병`)) {
+                        matchGroup = `${n}병`;
+                        break;
                     }
                 }
-                selectedItems.push({ cleanHeader, val });
-            }
-        });
 
-        let groupMap = {};
-        let groupOrder = [];
+                const targetKey = matchGroup ? matchGroup : key;
 
-        selectedItems.forEach(item => {
-            let key = item.cleanHeader;
-            let matchGroup = null;
-
-            for (let n = 1; n <= 10; n++) {
-                if (key.includes(`${n}병`)) {
-                    matchGroup = `${n}병`;
-                    break;
+                if (!groupMap[targetKey]) {
+                    groupMap[targetKey] = [];
+                    groupOrder.push(targetKey);
                 }
-            }
+                groupMap[targetKey].push(item.val);
+            });
 
-            const targetKey = matchGroup ? matchGroup : key;
+            groupOrder.forEach(key => {
+                const values = groupMap[key];
+                const div = document.createElement("div");
 
-            if (!groupMap[targetKey]) {
-                groupMap[targetKey] = [];
-                groupOrder.push(targetKey);
-            }
-            groupMap[targetKey].push(item.val);
-        });
+                if (groupMap[key].length > 1 && (key.includes("병"))) {
+                    div.innerHTML = `<strong>${key}:</strong> ${values.join(" ")}`;
+                } else if (values.length === 1) {
+                    div.innerHTML = `<strong>${key}:</strong> ${values[0]}`;
+                } else {
+                    div.innerHTML = `<strong>${key}:</strong> ${values.join(" ")}`;
+                }
+                labelBody.appendChild(div);
+            });
 
-        groupOrder.forEach(key => {
-            const values = groupMap[key];
-            const div = document.createElement("div");
+            const labelFooter = document.createElement("div");
+            labelFooter.className = "label-footer";
+            labelFooter.innerText = "Wildnsect 지조";
 
-            if (groupMap[key].length > 1 && (key.includes("병"))) {
-                div.innerHTML = `<strong>${key}:</strong> ${values.join(" ")}`;
-            } else if (values.length === 1) {
-                div.innerHTML = `<strong>${key}:</strong> ${values[0]}`;
-            } else {
-                div.innerHTML = `<strong>${key}:</strong> ${values.join(" ")}`;
-            }
-            bodyContainer.appendChild(div);
+            labelBox.appendChild(labelHeader);
+            labelBox.appendChild(labelBody);
+            labelBox.appendChild(labelFooter);
+
+            mainContainer.appendChild(labelBox);
         });
     }
 
-    // 💡 종명과 라벨 헤더 우측 A열 데이터를 실시간으로 읽어서 [종명]-[A열데이터].jpg 생성
-    function downloadLabelJpg() {
-        const labelElement = document.getElementById("labelPreview");
-        
-        // 1. 라벨 상단 헤더 왼쪽(종명) 읽기
-        const speciesText = document.getElementById("lblHeaderLeft").innerText.trim();
-        
-        // 2. 라벨 상단 헤더 오른쪽(ID: ...) 읽고 "ID: " 부분만 지워서 순수 A열 데이터만 가져오기
-        let rawIdText = document.getElementById("lblHeaderRight").innerText.trim();
-        let aColVal = rawIdText.replace(/^ID:\s*/, '').trim();
+    // 💡 생성된 모든 라벨 개체들을 순회하며 각각 JPG 변환 후 Zip 압축 파일로 일괄 저장
+    async function downloadAllLabelsZip() {
+        const labelElements = document.querySelectorAll(".label-box");
+        const speciesName = document.getElementById("speciesSelect").value || "종명";
 
-        if (!aColVal || aColVal === '-') {
-            aColVal = '고유번호';
+        if (labelElements.length === 0) {
+            alert("저장할 라벨이 존재하지 않습니다.");
+            return;
         }
 
-        // 3. 파일 이름 조합: [종명]-[A열데이터].jpg
-        let fileName = `${speciesText}-${aColVal}`;
-        
-        // 파일명에 쓸 수 없는 특수문자(/ \ ? % * : | " < >) 정제
-        const safeFileName = fileName.replace(/[\/\\?%*:|"<>]/g, "-");
+        const zip = new JSZip();
+        const folder = zip.folder("라벨_이미지");
 
-        html2canvas(labelElement, { scale: 3, backgroundColor: "#ffffff" }).then(canvas => {
-            const link = document.createElement("a");
-            link.download = `${safeFileName}.jpg`;
-            link.href = canvas.toDataURL("image/jpeg", 1.0);
-            link.click();
+        alert(`총 ${labelElements.length}개의 라벨을 JPG 이미지로 압축 변환 시작합니다. 잠시만 기다려주세요.`);
+
+        for (let i = 0; i < labelElements.length; i++) {
+            const el = labelElements[i];
+            const aColVal = el.getAttribute("data-acol") || `ID_${i+1}`;
+            
+            // 파일명 규칙: [종명]-[A열고유번호].jpg
+            const safeFileName = `${speciesName}-${aColVal}`.replace(/[\/\\?%*:|"<>]/g, "-");
+
+            const canvas = await html2canvas(el, { scale: 3, backgroundColor: "#ffffff" });
+            const imgData = canvas.toDataURL("image/jpeg", 1.0).split(',')[1];
+            
+            folder.file(`${safeFileName}.jpg`, imgData, {base64: true});
+        }
+
+        zip.generateAsync({type:"blob"}).then(function(content) {
+            saveAs(content, `라벨_일괄다운로드_${speciesName}.zip`);
         });
     }
 
