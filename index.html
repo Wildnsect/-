@@ -441,7 +441,7 @@
         return strVal;
     }
 
-    // 💡 'g'만 있거나 유효한 데이터가 없는 경우 라벨 줄에서 완전 제외하는 렌더링 로직
+    // 💡 단독 단위 'g' 필터링 및 유효 데이터 존재 여부 판단 렌더링 로직
     function updateAllLabels() {
         const wrapper = document.getElementById("labelPreviewWrapper");
         wrapper.innerHTML = "";
@@ -491,8 +491,7 @@
                     let val = null;
                     if (rawVal !== undefined && rawVal !== null) {
                         const trimmedStr = String(rawVal).trim();
-                        // 빈값이거나 '-', 혹은 정확히 'g' 단독 문자열인 경우 무시
-                        if (trimmedStr !== "" && trimmedStr !== "-" && trimmedStr.toLowerCase() !== "g") {
+                        if (trimmedStr !== "" && trimmedStr !== "-") {
                             if (cleanHeader.includes("일") || cleanHeader.includes("일자") || rawVal instanceof Date || String(rawVal).includes("GMT")) {
                                 val = formatCellDate(rawVal);
                             } else {
@@ -532,24 +531,22 @@
             });
 
             groupOrder.forEach(key => {
-                // 💡 그룹 내에 의미 있는 데이터(숫자나 날짜 등)가 포함되어 있는지 검증
-                // 단순히 'g'만 남아있거나 빈 배열인 경우 숨김
-                const values = groupMap[key].filter(v => {
-                    if (!v) return false;
-                    const cleanV = String(v).trim().toLowerCase();
-                    return cleanV !== "" && cleanV !== "-" && cleanV !== "g";
-                });
+                const allVals = groupMap[key].map(v => String(v).trim()).filter(v => v !== "" && v !== "-");
+                
+                // 💡 핵심 검증: 그룹 내에 'g' 이외의 실질적인 데이터(숫자, 날짜, 균사명 등)가 있는지 체크
+                const hasMeaningfulData = allVals.some(v => v.toLowerCase() !== "g");
 
-                if (values.length === 0) return; // 'g'만 있거나 데이터가 없으면 통째로 숨김!
+                // 의미 있는 데이터가 없고 단독 'g' 단위만 있거나 데이터가 없다면 숨김!
+                if (!hasMeaningfulData) return;
 
                 const div = document.createElement("div");
 
                 if (groupMap[key].length > 1 && (key.includes("병"))) {
-                    div.innerHTML = `<strong>${key}:</strong> ${values.join(" ")}`;
-                } else if (values.length === 1) {
-                    div.innerHTML = `<strong>${key}:</strong> ${values[0]}`;
+                    div.innerHTML = `<strong>${key}:</strong> ${allVals.join(" ")}`;
+                } else if (allVals.length === 1) {
+                    div.innerHTML = `<strong>${key}:</strong> ${allVals[0]}`;
                 } else {
-                    div.innerHTML = `<strong>${key}:</strong> ${values.join(" ")}`;
+                    div.innerHTML = `<strong>${key}:</strong> ${allVals.join(" ")}`;
                 }
                 bodyDiv.appendChild(div);
             });
