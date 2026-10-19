@@ -290,7 +290,7 @@
             const select = document.getElementById("idSelect");
             select.innerHTML = '<option value="">-- 고유 번호를 선택하세요 --</option>';
 
-            // 1단계: B열(인덱스 1) 데이터로 드롭다운 생성
+            // 1단계: B열(인덱스 1) 데이터로 드롭다운 선택지 구성
             rawSheetData.forEach(row => {
                 const idVal = row[1]; // B열
                 if (idVal) {
@@ -311,8 +311,8 @@
 
             headers.forEach((header, index) => {
                 const colLetter = getColumnLetter(index);
-                const cleanHeader = header ? String(header).split('\n')[0].trim() : `항목 ${colLetter}`;
-                
+                const cleanHeader = extractCleanHeaderName(header, index);
+
                 const isDefaultChecked = index < 12 || cleanHeader.includes("체중") || cleanHeader.includes("두폭") || cleanHeader.includes("특이 사항") || cleanHeader.includes("우화일");
 
                 const label = document.createElement("label");
@@ -328,6 +328,13 @@
             }
         };
         reader.readAsArrayBuffer(file);
+    }
+
+    // 💡 헤더명에서 'A열', 'B열' 등의 열 표시와 겉의 괄호를 깔끔하게 제거해 주는 전용 정제 함수
+    function extractCleanHeaderName(headerStr, index) {
+        if (!headerStr) return `항목 ${index + 1}`;
+        let name = String(headerStr).split('\n')[0].trim();
+        return name;
     }
 
     // 날짜 포맷 변환
@@ -371,7 +378,7 @@
 
         const rowData = dataMap[selectedId];
 
-        // 💡 1. 상단 헤더 ID는 엑셀 A열(인덱스 0) 데이터 표시
+        // 💡 1. 라벨 상단 오른쪽 고유번호는 엑셀 A열(인덱스 0) 데이터를 정확히 표시
         const headerIdVal = rowData[0] ? String(rowData[0]).trim() : selectedId;
 
         document.getElementById("lblHeaderLeft").innerText = selectedSpecies;
@@ -380,8 +387,8 @@
         headers.forEach((header, index) => {
             const checkbox = document.getElementById("col_" + index);
             if (checkbox && checkbox.checked) {
-                // 💡 2. 'A열' 및 줄바꿈/불필요 문자를 제거하고 깔끔한 헤더명만 추출
-                const cleanHeader = header ? String(header).split('\n')[0].trim() : `항목 ${index + 1}`;
+                // 💡 2. 'A열' 및 겉 괄호 표기를 제거하고 순수 항목명(예: 고유 번호(ID), 산지 등)만 추출
+                const cleanHeader = extractCleanHeaderName(header, index);
                 const rawVal = rowData[index];
 
                 let val = "-";
@@ -393,7 +400,7 @@
                     }
                 }
 
-                // '열 (항목명):' 표기를 빼고 오직 순수 항목명만 출력
+                // 열 명칭 및 외부 괄호 없이 pure 항목명만 기입
                 const div = document.createElement("div");
                 div.innerHTML = `<strong>${cleanHeader}:</strong> ${val}`;
                 bodyContainer.appendChild(div);
