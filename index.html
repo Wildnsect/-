@@ -1,55 +1,3 @@
-```python
-# Let's analyze why `20.2 g` or `19.9 g` was not converted to `20.2g` and `19.9g` in the screenshot:
-# In the screenshot:
-# 2병: 2025-12-19 BSK 800 20.2 g 체형밸런스 좋음
-# 3병: 2026-06-11 TGB 800 19.9 g
-# Notice there is a "체형밸런스 좋음" text as well! So `allVals` contains multiple columns like:
-# [ '2025-12-19', 'BSK 800', '20.2', 'g', '체형밸런스 좋음' ]
-# In our previous loop:
-# for (let i = 0; i < allVals.length; i++) {
-#    let curr = allVals[i];
-#    let next = allVals[i + 1];
-#    if (next && next.toLowerCase() === "g" && !isNaN(parseFloat(curr))) { ... }
-# }
-# Here, `curr` is "20.2", `next` is "g". It combined "20.2" and "g" into "20.2g". 
-# BUT wait! Why did it stay "20.2 g"?
-# Look at the code we gave earlier:
-# formattedVals.push(curr + "g"); i++; 
-# BUT `formattedVals.join(" ")` was used at the end:
-# `div.innerHTML = `<strong>${key}:</strong> ${formattedVals.join(" ")}`;`
-# Ah! `formattedVals.join(" ")` puts spaces between ALL elements in `formattedVals`!
-# So if `formattedVals` had `['2025-12-19', 'BSK 800', '20.2g', '체형밸런스 좋음']`, then `.join(" ")` produced:
-# "2025-12-19 BSK 800 20.2g 체형밸런스 좋음" -> Wait, in the screenshot it says `20.2 g` with a space! Why?
-# Ah, because in the Excel row, the columns might be:
-# Col A: 날짜 (2025-12-19)
-# Col B: 균사 (BSK 800)
-# Col C: 무게값 (20.2)
-# Col D: 단위 ('g') -> wait, if Col C is "20.2" and Col D is "g", but maybe the excel cell itself contained "20.2 g" combined in a single cell, OR it was parsed as separate columns where the unit column had "g", but wait, if it was combined as "20.2 g" inside a single cell string or if it wasn't split into separate columns.
-# Let's check: if a single cell string contains "20.2 g", replacing space between number and 'g' can be done via regex!
-# For example: text.replace(/([0-9])\s+g\b/gi, '$1g') or text.replace(/(\d+(\.\d+)?)\s+g\b/gi, '$1g').
-# That is so much more robust! Whether "g" is in the same cell or adjacent cells, a simple regex on the final combined string (or on each value) will instantly turn any "20.2 g" or "19.9 g" into "20.2g" and "19.9g".
-print("Regex replacement is the key.")
-
-
-```
-
-```text
-Regex replacement is the key.
-
-
-```
-
-올려주신 화면과 원인을 정확히 찾았습니다! 엑셀 셀 안에 데이터가 `20.2 g` 형태로 공백과 함께 한 번에 들어가 있거나 분리되어 있어서 이전 로직으로는 띄어쓰기가 제거되지 않았습니다.
-
-병 내부의 최종 결합된 문자열에서 숫자 바로 뒤에 나오는 공백과 `g`를 정규식(`replace`)으로 완벽하게 밀착시켜 `20.2g`, `19.9g` 형태로 강제 변환되도록 수정했습니다.
-
-아래 최종 코드를 복사해서 `index.html` 파일에 **전부 덮어쓰기** 하신 후 저장하고 새로고침해 보세요!
-
----
-
-### 💻 숫자와 `g` 단위 밀착 정제 최종 완성 코드 (`index.html`)
-
-```html
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -743,5 +691,3 @@ Regex replacement is the key.
 
 </body>
 </html>
-
-```
