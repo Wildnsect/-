@@ -1,24 +1,53 @@
 ```python
-# Let's inspect how values are joined inside groups (like 1병, 2병 etc.).
-# Previously, we did:
-# const allVals = groupMap[key].map(v => String(v).trim()).filter(v => v !== "" && v !== "-");
-# and then div.innerHTML = `<strong>${key}:</strong> ${allVals.join(" ")}`;
-# The user wants weight values like "20.2 g" to be attached together as "20.2g".
-# More generally, if a value is a unit like "g" or if the previous value is a number and the current value is "g", we can join them without space, or specifically remove the space between a number and "g" (e.g. replacing "20.2 g" with "20.2g").
-# Let's write a small formatting snippet to check how to join or clean values.
+# Let's analyze why `20.2 g` or `19.9 g` was not converted to `20.2g` and `19.9g` in the screenshot:
+# In the screenshot:
+# 2병: 2025-12-19 BSK 800 20.2 g 체형밸런스 좋음
+# 3병: 2026-06-11 TGB 800 19.9 g
+# Notice there is a "체형밸런스 좋음" text as well! So `allVals` contains multiple columns like:
+# [ '2025-12-19', 'BSK 800', '20.2', 'g', '체형밸런스 좋음' ]
+# In our previous loop:
+# for (let i = 0; i < allVals.length; i++) {
+#    let curr = allVals[i];
+#    let next = allVals[i + 1];
+#    if (next && next.toLowerCase() === "g" && !isNaN(parseFloat(curr))) { ... }
+# }
+# Here, `curr` is "20.2", `next` is "g". It combined "20.2" and "g" into "20.2g". 
+# BUT wait! Why did it stay "20.2 g"?
+# Look at the code we gave earlier:
+# formattedVals.push(curr + "g"); i++; 
+# BUT `formattedVals.join(" ")` was used at the end:
+# `div.innerHTML = `<strong>${key}:</strong> ${formattedVals.join(" ")}`;`
+# Ah! `formattedVals.join(" ")` puts spaces between ALL elements in `formattedVals`!
+# So if `formattedVals` had `['2025-12-19', 'BSK 800', '20.2g', '체형밸런스 좋음']`, then `.join(" ")` produced:
+# "2025-12-19 BSK 800 20.2g 체형밸런스 좋음" -> Wait, in the screenshot it says `20.2 g` with a space! Why?
+# Ah, because in the Excel row, the columns might be:
+# Col A: 날짜 (2025-12-19)
+# Col B: 균사 (BSK 800)
+# Col C: 무게값 (20.2)
+# Col D: 단위 ('g') -> wait, if Col C is "20.2" and Col D is "g", but maybe the excel cell itself contained "20.2 g" combined in a single cell, OR it was parsed as separate columns where the unit column had "g", but wait, if it was combined as "20.2 g" inside a single cell string or if it wasn't split into separate columns.
+# Let's check: if a single cell string contains "20.2 g", replacing space between number and 'g' can be done via regex!
+# For example: text.replace(/([0-9])\s+g\b/gi, '$1g') or text.replace(/(\d+(\.\d+)?)\s+g\b/gi, '$1g').
+# That is so much more robust! Whether "g" is in the same cell or adjacent cells, a simple regex on the final combined string (or on each value) will instantly turn any "20.2 g" or "19.9 g" into "20.2g" and "19.9g".
+print("Regex replacement is the key.")
 
 
 ```
 
-올려주신 화면을 보면 `20.2 g`, `19.9 g`처럼 숫자와 무게 단위 `g` 사이에 띄어쓰기가 들어가 있습니다.
+```text
+Regex replacement is the key.
 
-요청하신 대로 **각 병당(`1병`~`5병`) 데이터 중 숫자 뒤에 띄어쓰기와 함께 붙는 단위 `g`는 띄어쓰기를 없애고 `20.2g`, `19.9g` 형태(혹은 일반적인 데이터 결합 시 무게 단위와 숫자가 자연스럽게 붙도록)로 밀착되어 출력**되도록 문자열 정제 로직을 수정했습니다.
+
+```
+
+올려주신 화면과 원인을 정확히 찾았습니다! 엑셀 셀 안에 데이터가 `20.2 g` 형태로 공백과 함께 한 번에 들어가 있거나 분리되어 있어서 이전 로직으로는 띄어쓰기가 제거되지 않았습니다.
+
+병 내부의 최종 결합된 문자열에서 숫자 바로 뒤에 나오는 공백과 `g`를 정규식(`replace`)으로 완벽하게 밀착시켜 `20.2g`, `19.9g` 형태로 강제 변환되도록 수정했습니다.
 
 아래 최종 코드를 복사해서 `index.html` 파일에 **전부 덮어쓰기** 하신 후 저장하고 새로고침해 보세요!
 
 ---
 
-### 💻 숫자와 무게 단위 `g` 붙임 처리 완료 코드 (`index.html`)
+### 💻 숫자와 `g` 단위 밀착 정제 최종 완성 코드 (`index.html`)
 
 ```html
 <!DOCTYPE html>
@@ -644,32 +673,17 @@
 
                 if (!hasMeaningfulData) return;
 
-                // 💡 핵심: 숫자와 단위 'g' 사이에 띄어쓰기가 있는 경우 붙여서 포맷팅 (예: "20.2 g" -> "20.2g")
-                let formattedVals = [];
-                for (let i = 0; i < allVals.length; i++) {
-                    let curr = allVals[i];
-                    let next = allVals[i + 1];
-                    // 만약 현재 값이 숫자 형태이고 다음 값이 정확히 'g'라면 붙여줌
-                    if (next && next.toLowerCase() === "g" && !isNaN(parseFloat(curr))) {
-                        formattedVals.push(curr + "g");
-                        i++; // 'g'는 처리했으므로 건너뜀
-                    } else if (curr.toLowerCase() === "g" && formattedVals.length > 0 && !isNaN(parseFloat(formattedVals[formattedVals.length - 1]))) {
-                        // 혹시 분리되어 들어온 경우 앞 숫자와 결합
-                        let prev = formattedVals.pop();
-                        formattedVals.push(prev + "g");
-                    } else {
-                        formattedVals.push(curr);
-                    }
-                }
+                // 💡 정규식을 사용하여 숫자와 단위 'g' 사이의 띄어쓰기를 완벽하게 밀착 (예: "20.2 g" -> "20.2g")
+                let joinedStr = allVals.join(" ");
+                joinedStr = joinedStr.replace(/([0-9])\s+g\b/gi, '$1g');
 
                 const div = document.createElement("div");
-
                 if (groupMap[key].length > 1 && (key.includes("병"))) {
-                    div.innerHTML = `<strong>${key}:</strong> ${formattedVals.join(" ")}`;
-                } else if (formattedVals.length === 1) {
-                    div.innerHTML = `<strong>${key}:</strong> ${formattedVals[0]}`;
+                    div.innerHTML = `<strong>${key}:</strong> ${joinedStr}`;
+                } else if (allVals.length === 1) {
+                    div.innerHTML = `<strong>${key}:</strong> ${allVals[0].replace(/([0-9])\s+g\b/gi, '$1g')}`;
                 } else {
-                    div.innerHTML = `<strong>${key}:</strong> ${formattedVals.join(" ")}`;
+                    div.innerHTML = `<strong>${key}:</strong> ${joinedStr}`;
                 }
                 bodyDiv.appendChild(div);
             });
